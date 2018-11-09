@@ -26,12 +26,13 @@ import           Pos.Chain.Ssc (MCCommitment (..), MCOpening (..),
                      lookupVss, sscRunLocalQuery, tmCertificates,
                      tmCommitments, tmOpenings, tmShares)
 import           Pos.Chain.Txp (MemPool (..), TxAux (..), TxMsgContents (..),
-                     TxpConfiguration)
+                     TxValidationRules (..), TxpConfiguration)
 import           Pos.Chain.Update (BlockVersionData, UpdateProposal (..),
                      UpdateVote (..))
 import           Pos.Communication (NodeId)
 import           Pos.Core (StakeholderId, addressHash)
 import           Pos.Core.Chrono (NE, NewestFirst, OldestFirst)
+import           Pos.Core.Slotting (getEpochOrSlot)
 import           Pos.Crypto (hash)
 import qualified Pos.DB.Block as Block
 import qualified Pos.DB.Block as DB (getTipBlock)
@@ -158,11 +159,14 @@ logicFull genesisConfig txpConfig ourStakeholderId securityParams jsonLogTx =
         postPskHeavy :: ProxySKHeavy -> m Bool
         postPskHeavy = Delegation.handlePsk genesisConfig
 
+
         postTx = KeyVal
             { toKey = pure . Tagged . hash . taTx . getTxMsgContents
             , handleInv = \(Tagged txId) -> not . HM.member txId . _mpLocalTxs <$> withTxpLocalData getMemPool
             , handleReq = \(Tagged txId) -> fmap TxMsgContents . HM.lookup txId . _mpLocalTxs <$> withTxpLocalData getMemPool
-            , handleData = \(TxMsgContents txAux) -> Txp.handleTxDo genesisConfig txpConfig jsonLogTx txAux
+            , handleData = \(TxMsgContents txAux) -> do
+                currentEos <- getEpochOrSlot <$> getTipHeader
+                Txp.handleTxDo genesisConfig (TxValidationRules currentEos currentEos 1000 1000) txpConfig jsonLogTx txAux
             }
 
         postUpdate = KeyVal

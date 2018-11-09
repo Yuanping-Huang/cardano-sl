@@ -35,8 +35,10 @@ import           Pos.Core (AddrSpendingData (..), Address (..), Coin,
                      SlotId (..), addressHash, coinToInteger,
                      makePubKeyAddressBoot, unsafeIntegerToCoin)
 import           Pos.Core.NetworkMagic (makeNetworkMagic)
+import           Pos.Core.Slotting (getEpochOrSlot)
 import           Pos.Crypto (SecretKey, WithHash (..), fakeSigner, hash,
                      toPublic)
+import           Pos.DB.BlockIndex (getTipHeader)
 import           Pos.DB.Txp (MonadTxpLocal (..), getAllPotentiallyHugeUtxo)
 import           Pos.Generator.Block.Error (BlockGenError (..))
 import           Pos.Generator.Block.Mode (BlockGenMode, BlockGenRandMode,
@@ -229,7 +231,8 @@ genTxPayload genesisConfig txpConfig = do
         let txId = hash tx
         let txIns = _txInputs tx
         -- @txpProcessTx@ for BlockGenMode should be non-blocking
-        res <- lift . lift $ txpProcessTx genesisConfig txpConfig (txId, txAux)
+        currentEos <- getEpochOrSlot <$> getTipHeader
+        res <- lift . lift $ txpProcessTx genesisConfig (Utxo.TxValidationRules currentEos currentEos 1000 1000) txpConfig (txId, txAux)
         case res of
             Left e  -> error $ "genTransaction@txProcessTransaction: got left: " <> pretty e
             Right _ -> do

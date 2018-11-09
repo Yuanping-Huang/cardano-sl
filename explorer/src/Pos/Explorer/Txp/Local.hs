@@ -14,7 +14,7 @@ import qualified Data.HashMap.Strict as HM
 
 import           Pos.Chain.Genesis as Genesis (Config (..), configEpochSlots)
 import           Pos.Chain.Txp (ToilVerFailure (..), TxAux (..), TxId,
-                     TxpConfiguration, Utxo)
+                     TxValidationRules, TxpConfiguration, Utxo)
 import           Pos.Chain.Update (BlockVersionData)
 import           Pos.Core (EpochIndex, Timestamp)
 import           Pos.Core.JsonLog (CanJsonLog (..))
@@ -48,24 +48,29 @@ eTxProcessTransaction ::
        , CanJsonLog m
        )
     => Genesis.Config
+    -> TxValidationRules
     -> TxpConfiguration
     -> (TxId, TxAux)
     -> m (Either ToilVerFailure ())
-eTxProcessTransaction genesisConfig txpConfig itw =
+eTxProcessTransaction genesisConfig txValRules txpConfig itw =
     withStateLock LowPriority ProcessTransaction
-        $ \__tip -> eTxProcessTransactionNoLock genesisConfig txpConfig itw
+        $ \__tip -> eTxProcessTransactionNoLock genesisConfig txValRules txpConfig itw
 
+-- This returns a function to `txProcessTransactionAbstract` which then builds the TxValidationRules
+-- from the `configuration.yaml` and the state. Therefore we don't use `txValRules` here.
 eTxProcessTransactionNoLock ::
        forall ctx m. (ETxpLocalWorkMode ctx m)
     => Genesis.Config
+    -> TxValidationRules
     -> TxpConfiguration
     -> (TxId, TxAux)
     -> m (Either ToilVerFailure ())
-eTxProcessTransactionNoLock genesisConfig txpConfig itw = getCurrentSlot epochSlots >>= \case
+eTxProcessTransactionNoLock genesisConfig _txValRules txpConfig itw = getCurrentSlot epochSlots >>= \case
     Nothing   -> pure $ Left ToilSlotUnknown
     Just slot -> do
         -- First get the current @SlotId@ so we can calculate the time.
         -- Then get when that @SlotId@ started and use that as a time for @Tx@.
+        --eos <- getEpochOrSlot <$> getTipHeader
         mTxTimestamp <- getSlotStart slot
         txProcessTransactionAbstract epochSlots
                                      buildContext
@@ -79,11 +84,13 @@ eTxProcessTransactionNoLock genesisConfig txpConfig itw = getCurrentSlot epochSl
     processTx' ::
            Maybe Timestamp
         -> BlockVersionData
+        -> TxValidationRules
         -> EpochIndex
         -> (TxId, TxAux)
         -> ExceptT ToilVerFailure ELocalToilM ()
-    processTx' mTxTimestamp bvd epoch tx = eProcessTx
+    processTx' mTxTimestamp bvd txValRules epoch tx = eProcessTx
         (configProtocolMagic genesisConfig)
+        txValRules
         txpConfig
         bvd
         epoch
@@ -96,23 +103,26 @@ eTxProcessTransactionNoLock genesisConfig txpConfig itw = getCurrentSlot epochSl
 eTxNormalize
     :: forall ctx m . (ETxpLocalWorkMode ctx m)
     => Genesis.Config
+    -> TxValidationRules
     -> TxpConfiguration
     -> m ()
-eTxNormalize genesisConfig txpConfig = do
+eTxNormalize genesisConfig txValRules txpConfig = do
     extras <- MM.insertionsMap . view eemLocalTxsExtra <$> withTxpLocalData getTxpExtra
     txNormalizeAbstract (configEpochSlots genesisConfig)
                         buildExplorerExtraLookup
-                        (normalizeToil' extras)
+                        (normalizeToil' extras txValRules)
   where
     normalizeToil' ::
            HashMap TxId TxExtra
+        -> TxValidationRules
         -> BlockVersionData
         -> EpochIndex
         -> HashMap TxId TxAux
         -> ELocalToilM ()
-    normalizeToil' extras bvd epoch txs =
+    normalizeToil' extras txValRules' bvd epoch txs =
         let toNormalize = HM.toList $ HM.intersectionWith (,) txs extras
         in eNormalizeToil (configProtocolMagic genesisConfig)
+                          txValRules'
                           txpConfig
                           bvd
                           epoch

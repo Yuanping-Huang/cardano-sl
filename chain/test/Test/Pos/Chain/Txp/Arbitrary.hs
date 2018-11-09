@@ -38,7 +38,8 @@ import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary,
 import           Pos.Binary.Class (Raw)
 import           Pos.Chain.Txp (Tx (..), TxAux (..), TxIn (..),
                      TxInWitness (..), TxOut (..), TxOutAux (..),
-                     TxPayload (..), TxProof (..), TxSigData (..), mkTxPayload)
+                     TxPayload (..), TxProof (..), TxSigData (..),
+                     TxValidationRules, mkTxPayload)
 import           Pos.Core.Attributes (mkAttributes)
 import           Pos.Core.Common (Coin, IsBootstrapEraAddr (..),
                      makePubKeyAddress)
@@ -229,6 +230,9 @@ instance Arbitrary TxAux where
     arbitrary = genTxAux dummyProtocolMagic
     shrink = genericShrink
 
+instance Arbitrary TxValidationRules where
+    arbitrary = genericArbitrary
+    shrink = genericShrink
 ----------------------------------------------------------------------------
 -- Utilities used in 'Pos.Block.Arbitrary'
 ----------------------------------------------------------------------------

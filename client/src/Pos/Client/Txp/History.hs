@@ -42,16 +42,19 @@ import           Pos.Chain.Genesis as Genesis (Config (..))
 import           Pos.Chain.Genesis (GenesisData)
 import           Pos.Chain.Lrc (genesisLeaders)
 import           Pos.Chain.Txp (ToilVerFailure, Tx (..), TxAux (..), TxId,
-                     TxOut, TxOutAux (..), TxWitness, TxpConfiguration,
-                     TxpError (..), UtxoLookup, UtxoM, UtxoModifier,
-                     applyTxToUtxo, evalUtxoM, flattenTxPayload, genesisUtxo,
-                     runUtxoM, topsortTxs, txOutAddress, utxoGet, utxoToLookup)
+                     TxOut, TxOutAux (..), TxValidationRules (..), TxWitness,
+                     TxpConfiguration, TxpError (..), UtxoLookup, UtxoM,
+                     UtxoModifier, applyTxToUtxo, evalUtxoM, flattenTxPayload,
+                     genesisUtxo, runUtxoM, topsortTxs, txOutAddress, utxoGet,
+                     utxoToLookup)
 import           Pos.Core (Address, ChainDifficulty, Timestamp (..),
                      difficultyL)
 import           Pos.Core.JsonLog (CanJsonLog (..))
+import           Pos.Core.Slotting (getEpochOrSlot)
 import           Pos.Crypto (WithHash (..), withHash)
 import           Pos.DB (MonadDBRead, MonadGState)
 import           Pos.DB.Block (getBlock)
+import           Pos.DB.BlockIndex (getTipHeader)
 import           Pos.DB.Txp (MempoolExt, MonadTxpLocal, MonadTxpMem, buildUtxo,
                      getLocalTxs, txpProcessTx, withTxpLocalData)
 import qualified Pos.GState as GS
@@ -276,7 +279,8 @@ saveTxDefault :: TxHistoryEnv ctx m
               -> TxpConfiguration
               -> (TxId, TxAux) -> m ()
 saveTxDefault genesisConfig txpConfig txw = do
-    res <- txpProcessTx genesisConfig txpConfig txw
+    currentEos <- getEpochOrSlot <$> getTipHeader
+    res <- txpProcessTx genesisConfig (TxValidationRules currentEos currentEos 1000 1000) txpConfig txw
     eitherToThrow (first SaveTxToilFailure res)
 
 txHistoryListToMap :: [TxHistoryEntry] -> Map TxId TxHistoryEntry

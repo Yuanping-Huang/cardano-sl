@@ -19,7 +19,7 @@ import           Universum
 
 import           Pos.Chain.Genesis as Genesis (Config)
 import           Pos.Chain.Txp (TxAux (..), TxId, TxMsgContents (..),
-                     TxpConfiguration)
+                     TxValidationRules, TxpConfiguration)
 import           Pos.Crypto (hash)
 import           Pos.DB.Txp.MemState (MempoolExt, MonadTxpLocal, MonadTxpMem,
                      txpProcessTx)
@@ -33,13 +33,14 @@ import           Pos.Util.Wlog (WithLogger, logInfo)
 handleTxDo
     :: TxpMode ctx m
     => Genesis.Config
+    -> TxValidationRules
     -> TxpConfiguration
     -> (JLEvent -> m ())  -- ^ How to log transactions
     -> TxAux              -- ^ Incoming transaction to be processed
     -> m Bool
-handleTxDo genesisConfig txpConfig logTx txAux = do
+handleTxDo txValRules genesisConfig txpConfig logTx txAux = do
     let txId = hash (taTx txAux)
-    res <- txpProcessTx genesisConfig txpConfig (txId, txAux)
+    res <- txpProcessTx txValRules genesisConfig txpConfig (txId, txAux)
     let json me = logTx $ JLTxReceived $ JLTxR
             { jlrTxId  = sformat build txId
             , jlrError = me

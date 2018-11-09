@@ -58,8 +58,8 @@ instance MonadTxpLocal RealModeE where
     txpProcessTx = eTxProcessTransaction
 
 instance MonadTxpLocal ExplorerProd where
-    txpNormalize pm = lift . lift . txpNormalize pm
-    txpProcessTx genesisConfig txpConfig = lift . lift . txpProcessTx genesisConfig txpConfig
+    txpNormalize pm eos = lift . lift . txpNormalize pm eos
+    txpProcessTx genesisConfig eos txpConfig = lift . lift . txpProcessTx genesisConfig eos txpConfig
 
 -- | Use the 'RealMode' instance.
 -- FIXME instance on a type synonym.

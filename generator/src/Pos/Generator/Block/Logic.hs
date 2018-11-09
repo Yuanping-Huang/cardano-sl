@@ -178,16 +178,17 @@ genBlock genesisConfig txpConfig eos = do
     genBlockNoApply genesisConfig txpConfig eos tipHeader >>= \case
         Just block@Left{}   -> do
             let slot0 = SlotId epoch localSlotIndexMinBound
-            fmap Just $ withCurrentSlot slot0 $ lift $ verifyAndApply (Just slot0) block
+            fmap Just $ withCurrentSlot slot0 $ lift $ verifyAndApply (Just slot0) eos block
         Just block@Right {} -> do
-            fmap Just $ lift $ verifyAndApply Nothing block
+            fmap Just $ lift $ verifyAndApply Nothing eos block
         Nothing -> return Nothing
     where
     verifyAndApply
         :: Maybe SlotId
+        -> EpochOrSlot
         -> Block
         -> BlockGenMode (MempoolExt m) m Blund
-    verifyAndApply curSlot block =
+    verifyAndApply curSlot _eos block =
         verifyBlocksPrefix genesisConfig curSlot (one block) >>= \case
             Left err -> throwM (BGCreatedInvalid err)
             Right (undos, pollModifier) -> do

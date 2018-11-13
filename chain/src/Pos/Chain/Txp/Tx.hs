@@ -30,6 +30,7 @@ import           Data.Aeson (FromJSON (..), FromJSONKey (..),
 import           Data.Aeson.TH (defaultOptions, deriveJSON)
 import           Data.Aeson.Types (toJSONKeyText)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.List.NonEmpty as NE
 import           Data.SafeCopy (base, deriveSafeCopySimple)
 import qualified Data.Text as T
 import           Formatting (Format, bprint, build, builder, int, sformat, (%))
@@ -126,13 +127,23 @@ checkTx txValRules it =
                 ("output #"%int%" has invalid coin")
                 i
           )
-        , ( getAddressAttribCutoff txValRules > someLimit &&
-            unknownAttributesLength (_txAttributes it) > 1024
+        , (  if getCurrentEpoch txValRules > getAddressAttribCutoff txValRules
+               then (fromIntegral $ getTxAttribSize txValRules) > unknownAttributesLength (_txAttributes it)
+                 else True
           , sformat
-                ("size of unknown attribute in input #"%int%" is too large")
+                ("size of Tx unknown attributes in input #"%int%" is too large")
+                i
+          )
+        , ( if getCurrentEpoch txValRules > getAddressAttribCutoff txValRules
+              then all ( < (fromIntegral $ getTxAttribSize txValRules)) (map unknownAttributesLength txOutAddrAttribs)
+                else True
+          , sformat
+                ("size of Address unknown attributes in input #"%int%" is too large")
                 i
           )
         ]
+    txOutAddresses = map txOutAddress (NE.toList (_txOutputs it))
+    txOutAddrAttribs = map addrAttributes txOutAddresses
 
 -- | Because there is no limit on the size of Attributes
 -- (which allows unecessary bloating of the blockchain)
@@ -145,9 +156,6 @@ data TxValidationRules = TxValidationRules
     , getAddressAttribSize   :: Natural
     , getTxAttribSize        :: Natural
     } deriving (Generic, Show)
-
-someLimit :: EpochOrSlot
-someLimit = error "someLimit :: EpochOrSlot"
 
 --------------------------------------------------------------------------------
 -- TxId

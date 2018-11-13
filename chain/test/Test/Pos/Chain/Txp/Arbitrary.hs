@@ -15,6 +15,10 @@ module Test.Pos.Chain.Txp.Arbitrary
        , goodTxToTxAux
 
        -- | Standalone generators.
+       , genBloatedTxOut
+       , genBloatedAdd
+       , genAddressBloatedTx
+       , genAddrAttributes
        , genTx
        , genTxAux
        , genTxIn
@@ -26,12 +30,14 @@ module Test.Pos.Chain.Txp.Arbitrary
 
 import           Universum
 
+import qualified Data.ByteString.Lazy as LBS
 import           Data.Default (Default (def))
 import           Data.List.NonEmpty ((<|))
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Map as M
 import qualified Data.Vector as V
 import           Test.QuickCheck (Arbitrary (..), Gen, choose, listOf, oneof,
-                     scale)
+                     resize, scale)
 import           Test.QuickCheck.Arbitrary.Generic (genericArbitrary,
                      genericShrink)
 
@@ -40,9 +46,10 @@ import           Pos.Chain.Txp (Tx (..), TxAux (..), TxIn (..),
                      TxInWitness (..), TxOut (..), TxOutAux (..),
                      TxPayload (..), TxProof (..), TxSigData (..),
                      TxValidationRules, mkTxPayload)
-import           Pos.Core.Attributes (mkAttributes)
-import           Pos.Core.Common (Coin, IsBootstrapEraAddr (..),
-                     makePubKeyAddress)
+import           Pos.Core.Attributes (Attributes, mkAttributes,
+                     mkAttributesBloat)
+import           Pos.Core.Common (AddrAttributes, Address (..), Coin,
+                     IsBootstrapEraAddr (..), makePubKeyAddress)
 import           Pos.Core.Merkle (MerkleNode (..), MerkleRoot (..))
 import           Pos.Core.NetworkMagic (makeNetworkMagic)
 import           Pos.Crypto (Hash, ProtocolMagic, SecretKey, SignTag (SignTx),
@@ -67,6 +74,26 @@ instance Arbitrary TxOutAux where
 instance Arbitrary TxSigData where
     arbitrary = genericArbitrary
     shrink = genericShrink
+
+-- TODO: Also need to create a generator for Txs bloated with TxAttributes
+-- which is currently set to ()
+
+genAddrAttributes :: Gen (Attributes AddrAttributes)
+genAddrAttributes = do
+    map' <- arbitrary
+    case (length . M.elems $ M.map LBS.length map') < 10 of
+        True  -> genAddrAttributes
+        False -> mkAttributesBloat <$> arbitrary <*> (resize 100 $ pure map')
+
+genAddressBloatedTx :: Gen Tx
+genAddressBloatedTx = UnsafeTx <$> arbitrary <*> genBloatedTxOut <*> pure (mkAttributes ())
+
+genBloatedAdd :: Gen Address
+genBloatedAdd = Address <$> arbitrary <*> resize 100 genAddrAttributes <*> arbitrary
+
+genBloatedTxOut :: Gen (NonEmpty TxOut)
+genBloatedTxOut = NE.fromList <$> ((: []) <$> (TxOut <$> resize 100 genBloatedAdd <*> arbitrary))
+
 
 -- | Generator for a 'TxInWitness'. 'ProtocolMagic' is needed because it
 -- contains signatures.

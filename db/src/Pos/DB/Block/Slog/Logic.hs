@@ -141,6 +141,7 @@ slogVerifyBlocks genesisConfig curSlot blocks = runExceptT $ do
     era <- getConsensusEra
     eos <- getEpochOrSlot <$> DB.getTipHeader
     logInfo $ sformat ("slogVerifyBlocks: Consensus era is " % shown) era
+    logInfo $ sformat ("slogVerifyBlocks: Current `EpochOrSlot` is " % shown) eos
     (adoptedBV, adoptedBVD) <- lift getAdoptedBVFull
     let dataMustBeKnown = mustDataBeKnown uc adoptedBV
     let headEpoch = blocks ^. _Wrapped . _neHead . epochIndexL

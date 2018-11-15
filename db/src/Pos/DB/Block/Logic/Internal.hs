@@ -29,7 +29,7 @@ import           Universum
 
 import           Control.Lens (each, _Wrapped)
 import qualified Crypto.Random as Rand
-import           Formatting (sformat, (%))
+import           Formatting (sformat, shown, (%))
 import           Serokell.Util.Text (listJson)
 import           UnliftIO (MonadUnliftIO)
 
@@ -70,6 +70,7 @@ import           Pos.DB.Update (UpdateBlock, UpdateContext, usApplyBlocks,
                      usNormalize, usRollbackBlocks)
 import           Pos.Util (Some (..), spanSafe)
 import           Pos.Util.Util (HasLens', lensOf)
+import           Pos.Util.Wlog (logInfo)
 
 -- | Set of basic constraints used by high-level block processing.
 type MonadBlockBase ctx m
@@ -137,6 +138,7 @@ normalizeMempool genesisConfig txpConfig = do
     -- That's because delegation mempool normalization is harder and is done
     -- within block application.
     currentEos <- getEpochOrSlot <$> getTipHeader
+    logInfo $ sformat ("normalizeMempool: Current `EpochOrSlot` is " % shown) currentEos
     sscNormalize genesisConfig
     txpNormalize genesisConfig (TxValidationRules currentEos currentEos 1000 1000) txpConfig
     usNormalize (configBlockVersionData genesisConfig)

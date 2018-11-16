@@ -155,8 +155,22 @@ data TxValidationRules = TxValidationRules
     , getCurrentEpoch        :: EpochOrSlot
     , getAddressAttribSize   :: Natural
     , getTxAttribSize        :: Natural
-    } deriving (Generic, Show)
+    } deriving (Eq, Generic, Show)
 
+instance FromJSON TxValidationRules where
+    parseJSON = withObject "txValidationRules" $ \v -> TxValidationRules
+        <$> v .: "attribResrictEpoch"
+        <*> v .: "currEpoch"
+        <*> v .: "addrAttribSize"
+        <*> v .: "txAttribSize"
+
+instance ToJSON TxValidationRules where
+    toJSON (TxValidationRules aaCutoff currEpoch aaSize taSize) =
+        object [ "attribResrictEpoch" .= aaCutoff
+               , "currEpoch" .= currEpoch
+               , "addrAttribSize" .= aaSize
+               , "txAttribSize" .= taSize
+               ]
 --------------------------------------------------------------------------------
 -- TxId
 --------------------------------------------------------------------------------

@@ -1,0 +1,3 @@
+runhaskell Setup.hs build -j10 poc && ./dist/build/poc/poc --configuration-file ../lib/configuration.yaml --configuration-key mainnet_dryrun_full --topology ./topology.yaml --log-config ../log-configs/connect-to-cluster.yaml --db-path ~/dedup/staging-poc/
+runhaskell Setup.hs build -j10 poc && ./dist/build/poc/poc --configuration-file ../lib/configuration.yaml --log-config ../log-configs/connect-to-cluster.yaml --db-path ~/dedup/demo-poc/ --peer 127.0.0.1:3100  --logs-prefix logs --system-start 1542417137
+

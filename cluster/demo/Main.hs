@@ -73,6 +73,7 @@ main = void $ do
 
     handles <- forM cluster $ \case
         RunningCoreNode (NodeName nodeId) env handle -> do
+            -- todo, dont mapm over chars
             putTextLn $ "..."
                 <> nodeId <> " has no health-check API."
                 <> "\n......system start:  "   <> toText (env ! "SYSTEM_START")
@@ -81,6 +82,7 @@ main = void $ do
             return handle
 
         RunningRelayNode (NodeName nodeId) env handle -> do
+            -- todo, dont mapm over chars
             putTextLn $ "..."
                 <> nodeId <> " has no health-check API."
                 <> "\n......system start:  " <> toText (env ! "SYSTEM_START")

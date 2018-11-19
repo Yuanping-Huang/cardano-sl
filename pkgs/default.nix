@@ -13520,6 +13520,7 @@ license = stdenv.lib.licenses.bsd3;
 , generics-sop
 , hedgehog
 , hspec
+, hspec-discover
 , http-api-data
 , http-client
 , http-client-tls
@@ -13719,6 +13720,7 @@ unordered-containers
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 benchmarkHaskellDepends = [
 base
@@ -13783,6 +13785,7 @@ license = stdenv.lib.licenses.mit;
 , generic-arbitrary
 , haskeline
 , hspec
+, hspec-discover
 , lens
 , loc
 , megaparsec
@@ -13908,6 +13911,7 @@ universum
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 doHaddock = false;
 description = "Cardano SL - Auxx";
@@ -13935,6 +13939,7 @@ license = stdenv.lib.licenses.mit;
 , hashable
 , hedgehog
 , hspec
+, hspec-discover
 , lens
 , micro-recursion-schemes
 , mtl
@@ -14021,6 +14026,7 @@ unordered-containers
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 doHaddock = false;
 description = "Cardano SL - binary serialization";
@@ -14133,6 +14139,7 @@ license = stdenv.lib.licenses.mit;
 , hashable
 , hedgehog
 , hspec
+, hspec-discover
 , lens
 , lrucache
 , memory
@@ -14256,6 +14263,9 @@ time-units
 universum
 unordered-containers
 vector
+];
+testToolDepends = [
+hspec-discover
 ];
 benchmarkHaskellDepends = [
 base
@@ -14384,6 +14394,7 @@ license = stdenv.lib.licenses.mit;
 , data-default
 , formatting
 , hspec
+, hspec-discover
 , lens
 , mtl
 , QuickCheck
@@ -14454,6 +14465,7 @@ unordered-containers
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 doHaddock = false;
 description = "Cardano SL client modules";
@@ -14602,6 +14614,7 @@ license = stdenv.lib.licenses.mit;
 , hashable
 , hedgehog
 , hspec
+, hspec-discover
 , http-api-data
 , lens
 , memory
@@ -14726,6 +14739,7 @@ unordered-containers
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 doHaddock = false;
 description = "Cardano SL - core";
@@ -14823,6 +14837,7 @@ license = stdenv.lib.licenses.mit;
 , hashable
 , hedgehog
 , hspec
+, hspec-discover
 , lens
 , memory
 , mtl
@@ -14901,6 +14916,9 @@ quickcheck-instances
 text
 universum
 unordered-containers
+];
+testToolDepends = [
+hspec-discover
 ];
 doHaddock = false;
 description = "Cardano SL - cryptography primitives";
@@ -15167,6 +15185,7 @@ license = stdenv.lib.licenses.mit;
 , free
 , generic-arbitrary
 , hspec
+, hspec-discover
 , http-types
 , lens
 , memory
@@ -15314,6 +15333,7 @@ warp
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 benchmarkHaskellDepends = [
 base
@@ -15497,6 +15517,7 @@ license = stdenv.lib.licenses.mit;
 , exceptions
 , formatting
 , hspec
+, hspec-discover
 , lens
 , monad-control
 , MonadRandom
@@ -15614,6 +15635,7 @@ unordered-containers
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 benchmarkHaskellDepends = [
 base
@@ -15962,6 +15984,7 @@ license = stdenv.lib.licenses.mit;
 , hashable
 , hspec
 , hspec-core
+, hspec-discover
 , kademlia
 , lens
 , mtl
@@ -16060,6 +16083,9 @@ random
 serokell-util
 stm
 time-units
+];
+testToolDepends = [
+hspec-discover
 ];
 benchmarkHaskellDepends = [
 async
@@ -16467,6 +16493,7 @@ license = stdenv.lib.licenses.mit;
 , hashable
 , hedgehog
 , hspec
+, hspec-discover
 , katip
 , lens
 , lrucache
@@ -16589,6 +16616,7 @@ unordered-containers
 ];
 testToolDepends = [
 cpphs
+hspec-discover
 ];
 doHaddock = false;
 homepage = "https://github.com/input-output-hk/cardano-sl";

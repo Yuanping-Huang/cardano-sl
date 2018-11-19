@@ -9,7 +9,7 @@ in
   , skipDocker ? false
   , skipPackages ? []
   , nixpkgsArgs ? {
-      config = { allowUnfree = false; inHydra = true; };
+      config = (import ./nix/config.nix // { allowUnfree = false; inHydra = true; });
       gitrev = cardano.rev;
       inherit fasterBuild;
     }
@@ -66,6 +66,7 @@ let
     shells.cabal = supportedSystems;
     shells.stack = supportedSystems;
     stack2nix = supportedSystems;
+
   } skipPackages;
   platforms' = removeAttrs {
     connectScripts.mainnet.wallet   = [ "x86_64-linux" "x86_64-darwin" ];
@@ -76,6 +77,51 @@ let
     connectScripts.testnet.explorer = [ "x86_64-linux" "x86_64-darwin" ];
   } skipPackages;
   mapped = mapTestOn platforms;
+
+  nix-tools-toolchain = {
+    nix-tools.libs = removeAttrs {
+      # nix-tools toolchain: Libraries
+      cardano-sl            = supportedSystems;
+      cardano-sl-auxx       = supportedSystems;
+      cardano-sl-chain      = supportedSystems;
+      cardano-sl-core       = supportedSystems;
+      cardano-sl-crypto     = supportedSystems;
+      cardano-sl-db         = supportedSystems;
+      cardano-sl-generator  = supportedSystems;
+      cardano-sl-infra      = supportedSystems;
+      cardano-sl-networking = supportedSystems;
+      cardano-sl-tools      = supportedSystems;
+      cardano-sl-util       = supportedSystems;
+      cardano-sl-wallet-new = supportedSystems;
+      cardano-sl-x509       = supportedSystems;
+    } skipPackages;
+    nix-tools.exes = removeAttrs {
+      # nix-tools toolchain: Executables
+      # these will usually implicitly build their
+      # library as they depend on it.
+      cardano-sl-tools             = supportedSystems;
+      cardano-sl-generator         = supportedSystems;
+      cardano-sl-tools-post-mortem = supportedSystems;
+      cardano-sl-wallet-new        = supportedSystems;
+    } skipPackages;
+    # nix-tools toolchain: Tests
+    nix-tools.tests = removeAttrs
+      (lib.mapAttrs (_: lib.mapAttrs (_: _: supportedSystems))
+        (lib.filterAttrs (n: v: builtins.match ".*cardano-sl.*" n != null && v != null)
+          iohkPkgs.nix-tools.tests))
+      skipPackages;
+
+  };
+
+  mapped-nix-tools       = mapTestOn                                    nix-tools-toolchain;
+  mapped-nix-tools-cross = mapTestOnCross lib.systems.examples.mingwW64 nix-tools-toolchain;
+
+  mapped-nix-tools'
+    = lib.recursiveUpdate
+        (mapped-nix-tools)
+        (lib.mapAttrs (_: (lib.mapAttrs (_: (lib.mapAttrs' (n: v: lib.nameValuePair (lib.systems.examples.mingwW64.config + "-" + n) v)))))
+          mapped-nix-tools-cross);
+
   mapped' = mapTestOn platforms';
   makeConnectScripts = cluster: let
   in {
@@ -98,7 +144,7 @@ let
     cardanoPkgs = import ./. { inherit system; };
     f = name: value: value.testrun;
   in pkgs.lib.mapAttrs f (lib.filterAttrs pred cardanoPkgs);
-in pkgs.lib.fix (jobsets: mapped // {
+in pkgs.lib.fix (jobsets: mapped // mapped-nix-tools' // {
   inherit tests;
   inherit (pkgs) cabal2nix;
   nixpkgs = let
@@ -127,4 +173,5 @@ in pkgs.lib.fix (jobsets: mapped // {
       jobsets.tests.swaggerSchemaValidation
     ];
   });
-} // (builtins.listToAttrs (map makeRelease [ "mainnet" "staging" ])))
+}
+// (builtins.listToAttrs (map makeRelease [ "mainnet" "staging" ])))

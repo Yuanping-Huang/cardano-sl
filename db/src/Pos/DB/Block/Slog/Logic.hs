@@ -139,9 +139,14 @@ slogVerifyBlocks
 slogVerifyBlocks genesisConfig curSlot blocks = runExceptT $ do
     uc <- view (lensOf @UpdateConfiguration)
     era <- getConsensusEra
-    eos <- getEpochOrSlot <$> DB.getTipHeader
+    currentEos <- getEpochOrSlot <$> DB.getTipHeader
+    let txValRules = configTxValRules $ genesisConfig
+
     logInfo $ sformat ("slogVerifyBlocks: Consensus era is " % shown) era
-    logInfo $ sformat ("slogVerifyBlocks: Current `EpochOrSlot` is " % shown) eos
+    logInfo $ sformat ("slogVerifyBlocks: Current `EpochOrSlot` is " % shown) currentEos
+    logInfo $ sformat ("slogVerifyBlocks: Cutoff `EpochOrSlot` is " % shown) (getAddressAttribCutoff txValRules)
+    logInfo $ sformat ("slogVerifyBlocks: Address Attributes size is " % shown) (getAddressAttribSize txValRules)
+    logInfo $ sformat ("slogVerifyBlocks: Tx Attributes is " % shown) (getTxAttribSize txValRules)
     (adoptedBV, adoptedBVD) <- lift getAdoptedBVFull
     let dataMustBeKnown = mustDataBeKnown uc adoptedBV
     let headEpoch = blocks ^. _Wrapped . _neHead . epochIndexL
@@ -166,7 +171,7 @@ slogVerifyBlocks genesisConfig curSlot blocks = runExceptT $ do
     verResToMonadError formatAllErrors $
         verifyBlocks
             genesisConfig
-            (TxValidationRules eos eos 1000 1000)
+            (TxValidationRules (getAddressAttribCutoff txValRules) currentEos (getAddressAttribSize txValRules) (getTxAttribSize txValRules))
             curSlot
             dataMustBeKnown
             adoptedBVD

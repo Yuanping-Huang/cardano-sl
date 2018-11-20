@@ -58,11 +58,11 @@ dev: &dev
         heavyDelegation: {}
         avvmDistr: {}
     requiresNetworkMagic: RequiresNoMagic
-    attribResrictEpoch: 999999999
-    currEpoch: 0
+    dbSerializeVersion: 0
+  txValidationRules:
+    attribResrictEpoch: 2
     addrAttribSize: 128
     txAttribSize: 128
-    dbSerializeVersion: 0
 
   ntp: &dev_ntp
     # NTP
@@ -317,6 +317,11 @@ mainnet_base: &mainnet_base
         avvmDistr: {}
 
     dbSerializeVersion: 0
+
+  txValidationRules:
+    attribResrictEpoch: 2
+    addrAttribSize: 128
+    txAttribSize: 128
 
   ntp:
     responseTimeout: 30000000 # 30 sec
@@ -14837,11 +14842,7 @@ mainnet_full: &mainnet_full
       src:
         file: mainnet-genesis.json
         hash: 5f20df933584822601f9e3f8c024eb5eb252fe8cefb24d1317dc3d432e940ebb
-    txValidationRules:
-      attribResrictEpoch: 999999999
-      currEpoch: 0
-      addrAttribSize: 128
-      txAttribSize: 128
+    requiresNetworkMagic: RequiresNoMagic
 
 mainnet_wallet_win64: &mainnet_wallet_win64
   <<: *mainnet_full
@@ -14914,8 +14915,6 @@ testnet_launch: &testnet_launch
           maxProposalSize:   70000 # 70KB
           maxTxSize:         65536 # 64KiB
     requiresNetworkMagic: RequiresMagic
-    addrAttribSize: 128
-
 
 testnet_full: &testnet_full
   <<: *testnet_launch
@@ -14978,7 +14977,6 @@ mainnet_dryrun_full: &mainnet_dryrun_full
         file: mainnet-genesis-dryrun-with-stakeholders.json
         hash: c6a004d3d178f600cd8caa10abbebe1549bef878f0665aea2903472d5abf7323
     requiresNetworkMagic: RequiresNoMagic
-    addrAttribSize: 128
 
 mainnet_dryrun_wallet_win64: &mainnet_dryrun_wallet_win64
   <<: *mainnet_dryrun_full
@@ -15106,7 +15104,6 @@ devnet: &devnet
           useHeavyDlg: True
           seed: 0
     requiresNetworkMagic: RequiresNoMagic
-    addrAttribSize: 128
 
   update: &devnet_update
     applicationName: cardano-sl

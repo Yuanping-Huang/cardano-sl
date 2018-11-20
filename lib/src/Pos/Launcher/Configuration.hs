@@ -47,7 +47,8 @@ import           Ntp.Client (NtpConfiguration)
 import           Pos.Chain.Genesis as Genesis (Config (..), GenesisData (..),
                      StaticConfig, canonicalGenesisJson,
                      mkConfigFromStaticConfig, prettyGenesisJson)
-import           Pos.Core (Address, decodeTextAddress)
+import           Pos.Core (Address, EpochIndex (..), EpochOrSlot (..),
+                     decodeTextAddress)
 import           Pos.Core.Conc (currentTime)
 import           Pos.Core.Slotting (Timestamp (..))
 import           Pos.Crypto (RequiresNetworkMagic (..))
@@ -116,7 +117,7 @@ instance FromJSON Configuration where
                 aaSize <- valRulesObj .: "addrAttribSize"
                 taSize <- valRulesObj .: "txAttribSize"
 
-                pure $ TxValidationRules atribResEpoch atribResEpoch aaSize taSize
+                pure $ TxValidationRules (EpochOrSlot . Left $ EpochIndex atribResEpoch) (EpochOrSlot . Left $ EpochIndex atribResEpoch) aaSize taSize
             | otherwise -> fail "Did not find TxValidationRules"
                 {-
         ccAttResEpoch <- if
@@ -124,12 +125,12 @@ instance FromJSON Configuration where
             -- attribute sizes are to be restricted via validation rules
             -- in `checkTx`.
             | HM.member "attribResrictEpoch" o -> o .: "attribResrictEpoch"
-            | otherwise -> pure . EpochOrSlot . Left $ EpochIndex 100000
+            | otherwise -> pure . EpochOrSlot . Left $ EpochIndex 0
         ccAddrAttSize <- if
             -- The "addrAttribSize" field specifies the allowed
             -- size for Address Attributes.
             | HM.member "addrAttribSize" o -> o .: "addrAttribSize"
-            | otherwise -> pure 10000
+            | otherwise -> pure 1000
         ccTxAttSize <- if
             -- The "addrAttribSize" field specifies the allowed
             -- size for Address Attributes.
@@ -238,7 +239,9 @@ withConfigurations mAssetLockPath dumpGenesisPath dumpConfig cfo act = do
         (cfoSystemStart cfo)
         (cfoSeed cfo)
         (ccReqNetMagic cfg)
+        (ccTxValRules cfg)
         (ccGenesis cfg)
+
     withUpdateConfiguration (ccUpdate cfg) $
         withSscConfiguration (ccSsc cfg) $
         withDlgConfiguration (ccDlg cfg) $

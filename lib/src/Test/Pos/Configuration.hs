@@ -25,6 +25,7 @@ import           Universum
 
 import qualified Data.Aeson as J
 import qualified Data.Set as Set
+import           Numeric.Natural (Natural)
 
 import           Ntp.Client (NtpConfiguration)
 
@@ -35,7 +36,7 @@ import           Pos.Chain.Genesis as Genesis (Config (..),
                      GenesisProtocolConstants (..), GenesisSpec (..),
                      StaticConfig (..), mkConfig)
 import           Pos.Chain.Ssc (HasSscConfiguration, withSscConfiguration)
-import           Pos.Chain.Txp (TxpConfiguration (..))
+import           Pos.Chain.Txp (TxValidationRules (..), TxpConfiguration (..))
 import           Pos.Chain.Update (BlockVersionData, HasUpdateConfiguration,
                      withUpdateConfiguration)
 import           Pos.Configuration (HasNodeConfiguration, withNodeConfiguration)
@@ -43,6 +44,8 @@ import           Pos.Crypto (ProtocolMagic)
 import           Pos.Launcher.Configuration (Configuration (..),
                      HasConfigurations)
 import           Pos.Util.Config (embedYamlConfigCT)
+
+import           Test.Pos.Chain.Genesis.Dummy (dummyEpochOrSlot)
 
 -- | This configuration is embedded into binary and is used by default
 -- in tests.
@@ -60,6 +63,9 @@ defaultTestGenesisSpec = case ccGenesis defaultTestConf of
 
 defaultTestBlockVersionData :: BlockVersionData
 defaultTestBlockVersionData = gsBlockVersionData defaultTestGenesisSpec
+
+dummySize :: Natural
+dummySize = 10000000
 
 -- | This constraint requires all configurations which are not
 -- always hardcoded in tests (currently).
@@ -91,6 +97,7 @@ withDefDlgConfiguration = withDlgConfiguration (ccDlg defaultTestConf)
 
 withDefConfiguration :: (Genesis.Config -> r) -> r
 withDefConfiguration f = f $ mkConfig 0 defaultTestGenesisSpec
+                                 (TxValidationRules dummyEpochOrSlot dummyEpochOrSlot dummySize dummySize)
 
 withStaticConfigurations :: (HasStaticConfigurations => TxpConfiguration -> NtpConfiguration -> r) -> r
 withStaticConfigurations patak =
@@ -125,6 +132,7 @@ withProvidedMagicConfig pm f = withStaticConfigurations (f overriddenGenesisConf
   where
     overriddenGenesisConfig :: Genesis.Config
     overriddenGenesisConfig = mkConfig 0 overriddenGenesisSpec
+                                  (TxValidationRules dummyEpochOrSlot dummyEpochOrSlot dummySize dummySize)
     --
     overriddenGenesisSpec :: GenesisSpec
     overriddenGenesisSpec = updateGS defaultTestGenesisSpec

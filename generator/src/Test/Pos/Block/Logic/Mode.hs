@@ -66,7 +66,7 @@ import           Pos.Chain.Genesis as Genesis (Config (..),
                      GenesisSpec (..), configEpochSlots,
                      configGeneratedSecretsThrow, gsSecretKeys, mkConfig)
 import           Pos.Chain.Ssc (SscMemTag, SscState)
-import           Pos.Chain.Txp (TxpConfiguration (..))
+import           Pos.Chain.Txp (TxValidationRules (..), TxpConfiguration (..))
 import           Pos.Chain.Update (BlockVersionData, UpdateConfiguration)
 import           Pos.Core (SlotId, Timestamp (..))
 import           Pos.Core.Conc (currentTime)
@@ -116,6 +116,7 @@ import           Pos.WorkMode (EmptyMempoolExt)
 import           Test.Pos.Block.Logic.Emulation (Emulation (..), runEmulation,
                      sudoLiftIO)
 import           Test.Pos.Chain.Genesis.Arbitrary ()
+import           Test.Pos.Chain.Genesis.Dummy (dummyEpochOrSlot)
 import           Test.Pos.Configuration (defaultTestBlockVersionData,
                      defaultTestGenesisSpec)
 import           Test.Pos.Core.Arbitrary ()
@@ -175,6 +176,7 @@ genGenesisInitializer = do
 -- uses it to satisfy 'HasConfiguration'.
 withTestParams :: TestParams -> (Genesis.Config -> r) -> r
 withTestParams TestParams {..} f = f $ mkConfig _tpStartTime genesisSpec
+                                           (TxValidationRules dummyEpochOrSlot dummyEpochOrSlot 1000 1000)
   where
     genesisSpec = defaultTestGenesisSpec
         { gsInitializer       = _tpGenesisInitializer

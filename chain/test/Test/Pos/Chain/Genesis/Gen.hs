@@ -75,6 +75,7 @@ genGenesisData pm =
         <*> genGenesisProtocolConstants pm
         <*> genGenesisAvvmBalances
         <*> genSharedSeed
+
   where
     -- @TxFeePolicy@s ToJSON instance crashes if we have a
     -- TxFeePolicyUnknown value.

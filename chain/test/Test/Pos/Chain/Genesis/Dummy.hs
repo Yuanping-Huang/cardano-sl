@@ -5,6 +5,7 @@ module Test.Pos.Chain.Genesis.Dummy
        , dummyConfigStartTime
        , dummyProtocolConstants
        , dummyK
+       , dummyEpochOrSlot
        , dummyEpochSlots
        , dummySlotSecurityParam
        , dummyGenesisInitializer
@@ -34,10 +35,11 @@ import           Pos.Chain.Genesis (Config (..), FakeAvvmOptions (..),
                      genesisProtocolConstantsFromProtocolConstants,
                      gsSecretKeys, gsSecretKeysPoor, gsSecretKeysRich,
                      mkConfig, noGenesisDelegation)
+import           Pos.Chain.Txp (TxValidationRules (..))
 import           Pos.Chain.Update (BlockVersionData (..), SoftforkRule (..))
 import           Pos.Core (BlockCount, Coeff (..), EpochIndex (..),
-                     ProtocolConstants (..), SharedSeed (..), SlotCount,
-                     Timestamp, TxFeePolicy (..), TxSizeLinear (..),
+                     EpochOrSlot (..), ProtocolConstants (..), SharedSeed (..),
+                     SlotCount, Timestamp, TxFeePolicy (..), TxSizeLinear (..),
                      VssMaxTTL (..), VssMinTTL (..), kEpochSlots,
                      kSlotSecurityParam, pcBlkSecurityParam,
                      unsafeCoinPortionFromDouble)
@@ -49,7 +51,7 @@ dummyConfig :: Config
 dummyConfig = dummyConfigStartTime 0
 
 dummyConfigStartTime :: Timestamp -> Config
-dummyConfigStartTime ts = mkConfig ts dummyGenesisSpec
+dummyConfigStartTime ts = mkConfig ts dummyGenesisSpec $ TxValidationRules dummyEpochOrSlot dummyEpochOrSlot 1000000 1000000
 
 dummyProtocolConstants :: ProtocolConstants
 dummyProtocolConstants = ProtocolConstants
@@ -63,6 +65,9 @@ dummyK = pcBlkSecurityParam dummyProtocolConstants
 
 dummyEpochSlots :: SlotCount
 dummyEpochSlots = kEpochSlots dummyK
+
+dummyEpochOrSlot :: EpochOrSlot
+dummyEpochOrSlot = EpochOrSlot . Left $ EpochIndex 999999999
 
 dummySlotSecurityParam :: SlotCount
 dummySlotSecurityParam = kSlotSecurityParam dummyK

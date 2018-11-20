@@ -12,6 +12,7 @@ import           Pos.Core.Chrono
 import           Pos.Crypto (ProtocolMagic (..), RequiresNetworkMagic (..))
 import           Serokell.Util (mapJson)
 import           Test.Hspec.QuickCheck
+import           Test.Pos.Chain.Genesis.Dummy (dummyEpochOrSlot)
 
 import qualified Pos.Chain.Block as Cardano
 import qualified Pos.Chain.Txp as Cardano
@@ -296,7 +297,7 @@ intAndVerifyChain pm pc = runTranslateT pm $ do
         let chain'' = fromMaybe (error "intAndVerify: Nothing")
                     $ nonEmptyOldestFirst
                     $ chain'
-        isCardanoValid <- verifyBlocksPrefix chain''
+        isCardanoValid <- verifyBlocksPrefix chain'' dummyEpochOrSlot
         case (dslIsValid, isCardanoValid) of
           (Invalid _ e' , Invalid _ e) -> return $ ExpectedInvalid e' e
           (Invalid _ e' , Valid     _) -> return $ Disagreement ledger (UnexpectedValid e')

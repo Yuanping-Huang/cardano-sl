@@ -186,13 +186,17 @@ executable poc
   main-is:              Poc.hs
   other-modules:        AutomatedTestRunner
                         BlockParser
-                        Mode
+                        PocMode
   default-language:    Haskell2010
   build-depends:        base
                       , ansi-wl-pprint
+                      , brick
+                      , lifted-async
                       , bytestring
                       , cardano-sl
                       , cardano-sl-binary
+                      , vty
+                      , stm
                       , cardano-sl-chain
                       , cardano-sl-client
                       , cardano-sl-core
@@ -220,7 +224,7 @@ executable poc
                       , unordered-containers
   ghc-options:         -threaded -rtsopts
                        -Wall -Weverything
-                       -Wno-unsafe
+                       -Wno-unsafe -Wno-missing-import-lists
                        -O2 -optl-fuse-ld=gold
 
 test-suite cardano-auxx-test

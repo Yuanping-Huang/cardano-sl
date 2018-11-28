@@ -10,13 +10,14 @@ import           BlockParser ()
 import           Data.Constraint (Dict (Dict))
 import           Data.Default (def)
 import           Formatting (int, sformat, (%), Format)
-import           Mode
+import           PocMode
 import           Pos.Chain.Update (BlockVersion(BlockVersion), SoftwareVersion(SoftwareVersion), ApplicationName(ApplicationName), BlockVersionModifier(bvmMaxTxSize), BlockVersionData(bvdMaxTxSize, bvdMaxBlockSize))
 import           Pos.DB.Class (gsAdoptedBVData)
 import           Pos.Infra.Diffusion.Types (Diffusion)
 import           Pos.Launcher (HasConfigurations)
 import           Serokell.Data.Memory.Units (Byte)
 import           Universum hiding (on)
+import           Data.Ix (range)
 
 printbvd :: Dict HasConfigurations -> Diffusion AuxxMode -> AuxxMode ()
 printbvd Dict _diffusion = do
@@ -51,4 +52,6 @@ test4 = do
   on (3,0) printbvd
 
 main :: IO ()
-main = runScript $ return $ getScript test4
+main = do
+  corenodes <- forM (range (0,3)) $ \node -> startNode (Core node)
+  runScript $ return $ getScript test4

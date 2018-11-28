@@ -11,7 +11,7 @@
 
 -- | Execution mode used in Auxx.
 
-module Mode
+module PocMode
        (
        -- * Mode, context, etc.
          AuxxContext (..)
@@ -39,12 +39,11 @@ import           Pos.Core (HasPrimaryKey (primaryKey))
 import           Pos.Core.JsonLog (CanJsonLog (jsonLog))
 import           Pos.Core.Reporting (HasMisbehaviorMetrics (misbehaviorMetrics), MonadReporting (report))
 import           Pos.Core.Slotting (HasSlottingVar (slottingVar, slottingTimestamp), MonadSlotsData)
-import           Pos.DB (DBSum (RealDB, PureDB), MonadGState (gsAdoptedBVData), NodeDBs)
+import           Pos.DB (MonadGState (gsAdoptedBVData))
 import           Pos.DB.Block (MonadBListener (onApplyBlocks, onRollbackBlocks))
 import           Pos.DB.Class (MonadDB (dbPut, dbWriteBatch, dbDelete, dbPutSerBlunds), MonadDBRead (dbGet, dbIterSource, dbGetSerBlock, dbGetSerUndo, dbGetSerBlund))
 import           Pos.DB.Txp (MempoolExt, MonadTxpLocal (txpNormalize, txpProcessTx), txNormalize,
                      txProcessTransaction)
-import           Pos.GState (HasGStateContext (gStateContext), getGStateImplicit)
 import           Pos.Infra.Network.Types (HasNodeType (getNodeType), NodeType (NodeEdge))
 import           Pos.Infra.Shutdown (HasShutdownContext (shutdownContext))
 import           Pos.Infra.Slotting.Class (MonadSlots (getCurrentSlot, getCurrentSlotBlocking, getCurrentSlotInaccurate, currentTimeSlotting))
@@ -78,17 +77,6 @@ realModeToAuxx = withReaderT acRealModeContext
 ----------------------------------------------------------------------------
 -- Boilerplate instances
 ----------------------------------------------------------------------------
-
--- hacky instance needed to make blockgen work
-instance HasLens DBSum AuxxContext DBSum where
-    lensOf =
-        let getter ctx = RealDB (ctx ^. (lensOf @NodeDBs))
-            setter ctx (RealDB db') = ctx & (lensOf @NodeDBs) .~ db'
-            setter _ (PureDB _)     = error "Auxx: tried to set pure db insteaf of nodedb"
-        in lens getter setter
-
-instance HasGStateContext AuxxContext where
-    gStateContext = getGStateImplicit
 
 instance HasSscContext AuxxContext where
     sscContext = acRealModeContext_L . sscContext

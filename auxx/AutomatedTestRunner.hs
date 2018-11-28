@@ -7,8 +7,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
-module AutomatedTestRunner where
+module AutomatedTestRunner (Example, getGenesisConfig, loadNKeys, doUpdate, onStartup, on, getScript, runScript, NodeType(..), startNode) where
 
 import           Data.List ((!!))
 import           Data.Version (showVersion)
@@ -19,7 +20,9 @@ import           Pos.Crypto (emptyPassphrase, hash, hashHexF, withSafeSigners, n
 import           Pos.Util.CompileInfo (CompileTimeInfo (ctiGitRevision), HasCompileInfo, compileInfo, withCompileInfo)
 import           Prelude (show)
 import           Text.PrettyPrint.ANSI.Leijen (Doc)
-import           Universum hiding (when, show)
+import           Universum hiding (when, show, on, state)
+import           Control.Lens (to)
+import           Pos.DB.BlockIndex (getTipHeader)
 import qualified Pos.Client.CLI as CLI
 import           Pos.Launcher (HasConfigurations, NodeParams (npBehaviorConfig, npUserSecret, npNetworkConfig),
                      NodeResources, WalletConfiguration,
@@ -30,20 +33,21 @@ import           Data.Constraint (Dict(Dict))
 import           Data.Default (Default(def))
 import           Data.Reflection (Given, given, give)
 import           Formatting (int, sformat, (%), Format)
-import           Mode
+import           PocMode (AuxxContext(AuxxContext, acRealModeContext), AuxxMode, realModeToAuxx)
 import           Ntp.Client (NtpConfiguration)
 import           Pos.Chain.Genesis as Genesis (Config (configGeneratedSecrets, configProtocolMagic), configEpochSlots)
 import           Pos.Chain.Txp (TxpConfiguration)
 import           Pos.Chain.Update (UpdateData, SystemTag, mkUpdateProposalWSign, BlockVersion, SoftwareVersion, BlockVersionModifier)
 import           Pos.Client.Update.Network (submitUpdateProposal)
-import           Pos.Core (LocalSlotIndex, SlotId (SlotId), mkLocalSlotIndex, EpochIndex(EpochIndex), SlotCount)
+import           Pos.Core (LocalSlotIndex, SlotId (SlotId, siEpoch, siSlot), mkLocalSlotIndex, EpochIndex(EpochIndex), SlotCount, getEpochIndex, getSlotIndex, difficultyL, getChainDifficulty, getBlockCount, getEpochOrSlot)
 import           Pos.DB.DB (initNodeDBs)
 import           Pos.DB.Txp (txpGlobalSettings)
 import           Pos.Infra.DHT.Real.Param (KademliaParams)
 import           Pos.Infra.Diffusion.Types (Diffusion, hoistDiffusion)
 import           Pos.Infra.Network.Types (NetworkConfig (ncTopology, ncEnqueuePolicy, ncDequeuePolicy, ncFailurePolicy), Topology (TopologyAuxx), topologyDequeuePolicy, topologyEnqueuePolicy, topologyFailurePolicy, NodeId)
 import           Pos.Infra.Slotting.Util (onNewSlot, defaultOnNewSlotParams)
-import           Pos.Util (logException)
+import           Pos.Util (logException, lensOf)
+import           Control.Monad.STM (orElse)
 import           Pos.Util.UserSecret (usVss, readUserSecret, usPrimKey, usKeys)
 import           Pos.Util.Wlog (LoggerName)
 import           Pos.WorkMode (RealMode, EmptyMempoolExt)
@@ -51,6 +55,13 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as Map
 import qualified Data.Text as T
 import           Data.Ix (range)
+import           Control.Concurrent.Async.Lifted.Safe
+import Brick hiding (on)
+import Brick.BChan
+import Graphics.Vty (mkVty, defaultConfig, defAttr)
+import Control.Concurrent
+import Pos.Chain.Block (LastKnownHeaderTag)
+import BrickUI
 
 class TestScript a where
   getScript :: a -> Script
@@ -65,6 +76,7 @@ data ScriptBuilder = ScriptBuilder
   , sbEpochSlots :: SlotCount
   , sbGenesisConfig :: Config
   }
+data NodeType = Core { ntIdex :: Integer }
 
 instance Default Script where def = Script def def
 
@@ -80,17 +92,14 @@ data SlotTrigger = SlotTrigger
 instance Show SlotTrigger where
   show _ = "IO ()"
 
-data TheMap = TheMap deriving Show
-data Config2 = Config2
-
-newtype ExampleT m a = ExampleT { runExampleT :: ReaderT Config2 (StateT ScriptBuilder m) a } deriving (Functor, Applicative, Monad, MonadState ScriptBuilder)
+newtype ExampleT m a = ExampleT { runExampleT :: StateT ScriptBuilder m a } deriving (Functor, Applicative, Monad, MonadState ScriptBuilder)
 newtype Example a = Example { runExample :: ExampleT (Identity) a } deriving (Applicative, Functor, Monad, MonadState ScriptBuilder)
 
 instance HasEpochSlots => TestScript (Example a) where
   getScript action = do
     let
       script :: ScriptBuilder
-      script = snd $ runIdentity $ runStateT (runReaderT (runExampleT $ runExample action) Config2) (ScriptBuilder def getEpochSlots getEpochSlots')
+      script = snd $ runIdentity $ runStateT (runExampleT $ runExample action) (ScriptBuilder def getEpochSlots getEpochSlots')
     sbScript script
 
 instance TestScript Script where
@@ -133,15 +142,15 @@ getScriptRunnerOptions = execParser programInfo
 loggerName :: LoggerName
 loggerName = "script-runner"
 
-thing :: (TestScript a, HasCompileInfo) => ScriptRunnerOptions -> (HasEpochSlots => IO a) -> IO ()
-thing opts@ScriptRunnerOptions{..} scriptGetter = do
+thing :: (TestScript a, HasCompileInfo) => ScriptRunnerOptions -> (HasEpochSlots => IO a) -> BChan CustomEvent -> IO ()
+thing opts@ScriptRunnerOptions{..} scriptGetter eventChan = do
   let
     conf = CLI.configurationOptions (CLI.commonArgs cArgs)
     cArgs@CLI.CommonNodeArgs{..} = srCommonNodeArgs
-  withConfigurations Nothing cnaDumpGenesisDataPath cnaDumpConfiguration conf (runWithConfig opts scriptGetter)
+  withConfigurations Nothing cnaDumpGenesisDataPath cnaDumpConfiguration conf (runWithConfig opts scriptGetter eventChan)
 
-runWithConfig :: (TestScript a, HasCompileInfo, HasConfigurations) => ScriptRunnerOptions -> (HasEpochSlots => IO a) -> Genesis.Config -> WalletConfiguration -> TxpConfiguration -> NtpConfiguration -> IO ()
-runWithConfig ScriptRunnerOptions{..} scriptGetter genesisConfig _walletConfig txpConfig _ntpConfig = do
+runWithConfig :: (TestScript a, HasCompileInfo, HasConfigurations) => ScriptRunnerOptions -> (HasEpochSlots => IO a) -> BChan CustomEvent -> Genesis.Config -> WalletConfiguration -> TxpConfiguration -> NtpConfiguration -> IO ()
+runWithConfig ScriptRunnerOptions{..} scriptGetter eventChan genesisConfig _walletConfig txpConfig _ntpConfig = do
   let
     cArgs@CLI.CommonNodeArgs {..} = srCommonNodeArgs
     nArgs =
@@ -165,32 +174,50 @@ runWithConfig ScriptRunnerOptions{..} scriptGetter genesisConfig _walletConfig t
     thing2 :: ReaderT InitModeContext IO ()
     thing2 = initNodeDBs genesisConfig
   script <- liftIO $ withEpochSlots epochSlots genesisConfig scriptGetter
-  bracketNodeResources genesisConfig nodeParams sscParams thing1 thing2 (thing3 genesisConfig txpConfig script)
+  bracketNodeResources genesisConfig nodeParams sscParams thing1 thing2 (thing3 genesisConfig txpConfig script eventChan)
 
-thing3 :: (TestScript a, HasCompileInfo, HasConfigurations) => Config -> TxpConfiguration -> a -> NodeResources () -> IO ()
-thing3 genesisConfig txpConfig script nr = do
+thing3 :: (TestScript a, HasCompileInfo, HasConfigurations) => Config -> TxpConfiguration -> a -> BChan CustomEvent -> NodeResources () -> IO ()
+thing3 genesisConfig txpConfig script eventChan nr = do
   let
     toRealMode :: AuxxMode a -> RealMode EmptyMempoolExt a
     toRealMode auxxAction = do
       realModeContext <- ask
-      let auxxContext = AuxxContext { acRealModeContext = realModeContext }
-      lift $ runReaderT auxxAction auxxContext
+      lift $ runReaderT auxxAction $ AuxxContext { acRealModeContext = realModeContext }
     thing2 :: Diffusion (RealMode ()) -> RealMode EmptyMempoolExt ()
     thing2 diffusion = toRealMode (thing5 (hoistDiffusion realModeToAuxx toRealMode diffusion))
     thing5 :: Diffusion AuxxMode -> AuxxMode ()
     thing5 = runNode genesisConfig txpConfig nr thing4
     thing4 :: [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
-    thing4 = workers genesisConfig script
+    thing4 = workers genesisConfig script eventChan
   runRealMode genesisConfig txpConfig nr thing2
 
-workers :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
-workers genesisConfig script = [ ( T.pack "worker1", worker1 genesisConfig script) ]
+workers :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> BChan CustomEvent -> [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
+workers genesisConfig script eventChan =
+  [ ( T.pack "worker1", worker1 genesisConfig script eventChan)
+  , ( "worker2", worker2 eventChan)
+  ]
 
-worker1 :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> Diffusion (AuxxMode) -> AuxxMode ()
-worker1 genesisConfig script diffusion = do
+worker2 :: HasConfigurations => BChan CustomEvent -> Diffusion AuxxMode -> AuxxMode ()
+worker2 eventChan diffusion = do
+  localTip  <- getTipHeader
+  headerRef <- view (lensOf @LastKnownHeaderTag)
+  mbHeader <- atomically $ readTVar headerRef `orElse` pure Nothing
+  let
+    globalHeight = view (difficultyL . to getChainDifficulty) <$> mbHeader
+    localHeight = view (difficultyL . to getChainDifficulty) localTip
+    f (Just v) = Just $ getBlockCount v
+    f Nothing = Nothing
+  liftIO $ do
+    writeBChan eventChan $ NodeInfoEvent (getBlockCount localHeight) (getEpochOrSlot localTip) (f globalHeight)
+    threadDelay 100000
+  worker2 eventChan diffusion
+
+worker1 :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> BChan CustomEvent -> Diffusion (AuxxMode) -> AuxxMode ()
+worker1 genesisConfig script eventChan diffusion = do
   let
     handler :: SlotId -> AuxxMode ()
     handler slotid = do
+      liftIO $ writeBChan eventChan $ SlotStart (getEpochIndex $ siEpoch slotid) (getSlotIndex $ siSlot slotid)
       print slotid
       case Map.lookup slotid (slotTriggers realScript) of
         Just (SlotTrigger act) -> runAction act
@@ -203,8 +230,6 @@ worker1 genesisConfig script diffusion = do
     runAction act = do
       act Dict diffusion `catch` errhandler @SomeException
     realWorker = do
-      print realScript
-      print ("in worker1"::String)
       mapM_ (\(SlotTrigger act) -> runAction act) (startupActions realScript)
       onNewSlot (configEpochSlots genesisConfig) defaultOnNewSlotParams handler
       pure ()
@@ -212,13 +237,35 @@ worker1 genesisConfig script diffusion = do
 
 runScript :: TestScript a => (HasEpochSlots => IO a) -> IO ()
 runScript scriptGetter = withCompileInfo $ do
+  (eventChan, asyncUi) <- runUI
   opts <- getScriptRunnerOptions
-  print opts
   let
     loggingParams = CLI.loggingParams loggerName (srCommonNodeArgs opts)
   loggerBracket "script-runner" loggingParams . logException "script-runner" $ do
-    thing opts scriptGetter
+    thing opts scriptGetter eventChan
     pure ()
+  liftIO $ writeBChan eventChan QuitEvent
+  finalState <- wait asyncUi
+  print finalState
+
+runUI :: IO (BChan CustomEvent, Async AppState)
+runUI = do
+  eventChan <- newBChan 10
+  let
+    app = App
+      { appDraw = ui
+      , appChooseCursor = \_ _ -> Nothing
+      , appHandleEvent = handleEvent
+      , appStartEvent = \x -> pure x
+      , appAttrMap = const $ attrMap defAttr []
+      }
+    state :: AppState
+    state = AppState 0 Nothing "" Nothing
+    go :: IO AppState
+    go = do
+      customMain (mkVty defaultConfig) (Just eventChan) app state
+  brick <- async go
+  pure (eventChan, brick)
 
 getGenesisConfig :: Example Config
 getGenesisConfig = do
@@ -296,19 +343,27 @@ doUpdate diffusion genesisConfig keyIndex blockVersion softwareVersion blockVers
 
 loadNKeys :: Integer -> AuxxMode ()
 loadNKeys n = do
-  print ("loading keys"::String)
   let
     fmt :: Format r (Integer -> r)
     fmt = "../state-demo/generated-keys/rich/" % int % ".key"
     loadKey :: Integer -> AuxxMode ()
     loadKey x = do
       secret <- readUserSecret (T.unpack $ sformat fmt x)
-      print secret
       let
         sk = maybeToList $ secret ^. usPrimKey
         secret' = secret & usKeys %~ (++ map noPassEncrypt sk)
-      print secret'
       let primSk = fromMaybe (error "Primary key not found") (secret' ^. usPrimKey)
-      print primSk
       addSecretKey $ noPassEncrypt primSk
   mapM_ loadKey (range (0,n - 1))
+
+data NodeHandle = NodeHandle
+
+startNode :: NodeType -> IO NodeHandle
+startNode (Core idx) = do
+  let
+    params = [ "--configuration-file", "../lib/configuration.yaml"
+             , "--system-start", "1543100429"
+             , "--db-path", "poc-state/core" <> (show idx) <> "-db"
+             , "--keyfile", "poc-state/secret" <> (show idx) <> ".key"
+             ]
+  pure undefined

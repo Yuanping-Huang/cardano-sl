@@ -1,0 +1,59 @@
+name:                cardano-sl-script-runner
+version:             2.0.0
+synopsis:            Cardano SL - Script Runner
+description:         Cardano SL - ScriptRunner
+license:             MIT
+license-file:        LICENSE
+author:              IOHK
+maintainer:          operations@iohk.io
+copyright:           2018 IOHK
+category:            Currency
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+executable poc
+  main-is:              Poc.hs
+  other-modules:        AutomatedTestRunner
+                        BlockParser
+                        PocMode
+                        BrickUI
+  default-language:    Haskell2010
+  build-depends:        base
+                      , ansi-wl-pprint
+                      , brick
+                      , bytestring
+                      , cardano-sl
+                      , cardano-sl-binary
+                      , cardano-sl-chain
+                      , cardano-sl-client
+                      , cardano-sl-core
+                      , cardano-sl-crypto
+                      , cardano-sl-db
+                      , cardano-sl-generator
+                      , cardano-sl-infra
+                      , cardano-sl-networking
+                      , cardano-sl-util
+                      , cborg
+                      , conduit
+                      , constraints
+                      , containers
+                      , data-default
+                      , formatting
+                      , lens
+                      , lifted-async
+                      , mtl
+                      , optparse-applicative
+                      , reflection
+                      , resourcet
+                      , serokell-util
+                      , stm
+                      , text
+                      , transformers
+                      , universum
+                      , unordered-containers
+                      , vty
+  ghc-options:         -threaded -rtsopts
+                       -Wall -Weverything
+                       -Wno-unsafe -Wno-missing-import-lists
+                       -O2 -optl-fuse-ld=gold

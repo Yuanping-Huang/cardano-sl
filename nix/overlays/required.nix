@@ -33,6 +33,7 @@ self: super: {
     cardano-sl-generator = addRealTimeTestLogs super.cardano-sl-generator;
     cardano-sl-networking = addRealTimeTestLogs super.cardano-sl-networking;
     data-clist = doJailbreak super.data-clist;
+    mtl = null;
 
     ########################################################################
     # The base Haskell package builder

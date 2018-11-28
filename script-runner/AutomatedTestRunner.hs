@@ -37,7 +37,7 @@ import           PocMode (AuxxContext(AuxxContext, acRealModeContext), AuxxMode,
 import           Ntp.Client (NtpConfiguration)
 import           Pos.Chain.Genesis as Genesis (Config (configGeneratedSecrets, configProtocolMagic), configEpochSlots)
 import           Pos.Chain.Txp (TxpConfiguration)
-import           Pos.Chain.Update (UpdateData, SystemTag, mkUpdateProposalWSign, BlockVersion, SoftwareVersion, BlockVersionModifier)
+import           Pos.Chain.Update (UpdateData, SystemTag, mkUpdateProposalWSign, BlockVersion, SoftwareVersion, BlockVersionModifier, updateConfiguration)
 import           Pos.Client.Update.Network (submitUpdateProposal)
 import           Pos.Core (LocalSlotIndex, SlotId (SlotId, siEpoch, siSlot), mkLocalSlotIndex, EpochIndex(EpochIndex), SlotCount, getEpochIndex, getSlotIndex, difficultyL, getChainDifficulty, getBlockCount, getEpochOrSlot)
 import           Pos.DB.DB (initNodeDBs)
@@ -189,7 +189,7 @@ thing3 genesisConfig txpConfig script eventChan nr = do
     thing5 = runNode genesisConfig txpConfig nr thing4
     thing4 :: [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
     thing4 = workers genesisConfig script eventChan
-  runRealMode genesisConfig txpConfig nr thing2
+  runRealMode updateConfiguration genesisConfig txpConfig nr thing2
 
 workers :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> BChan CustomEvent -> [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
 workers genesisConfig script eventChan =

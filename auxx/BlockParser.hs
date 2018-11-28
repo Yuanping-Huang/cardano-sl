@@ -3,10 +3,11 @@
 
 module BlockParser where
 
-import           Universum hiding (when)
+import           Universum hiding (when, openFile)
 import Codec.CBOR.Read (deserialiseFromBytes)
 import Pos.Binary.Class (decode)
 import Pos.Chain.Block (Block)
+import System.IO hiding (print)
 
 import qualified Data.ByteString.Lazy as LBS
 
@@ -25,7 +26,11 @@ printBlock filename = do
     block :: Block
     Right ("", block) = deserialiseFromBytes decode blockraw
   case block of
-    Left gb -> print ("genesis block" :: String)
+    Left gb -> do
+      hnd <- openFile "show.txt" WriteMode
+      print ("genesis block" :: String)
+      hPutStrLn hnd $ show gb
+      hClose hnd
     Right mb -> do
       print ("main block" :: String)
       print mb

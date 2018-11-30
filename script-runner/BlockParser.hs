@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module BlockParser where
+module BlockParser (file1, file2, printBlock) where
 
 import           Universum hiding (when, openFile)
 import Codec.CBOR.Read (deserialiseFromBytes)
@@ -21,8 +21,8 @@ printBlock filename = do
   raw <- LBS.readFile filename
   let
     blockraw :: LBS.ByteString
-    undoraw :: LBS.ByteString
-    Right ("", (blockraw, undoraw)) = deserialiseFromBytes decode raw
+    _undoraw :: LBS.ByteString
+    Right ("", (blockraw, _undoraw)) = deserialiseFromBytes decode raw
     block :: Block
     Right ("", block) = deserialiseFromBytes decode blockraw
   case block of

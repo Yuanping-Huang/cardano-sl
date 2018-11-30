@@ -1,62 +1,60 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
-module BrickUI (AppState(..), ui, CustomEvent(..), handleEvent) where
+module BrickUI (ui, handleEvent) where
 
 import           Brick hiding (on)
-import           Graphics.Vty (Event(EvKey), Key(KEnter))
-import           Universum hiding (when, show, on, state)
-import           Pos.Core (ChainDifficulty, EpochOrSlot, HasDifficulty (..))
+import           Formatting
+import           Graphics.Vty (Event(EvKey), Key(KChar))
+import           Universum hiding (when, on, state)
+import qualified Brick.Widgets.Border.Style as BS
+import qualified Brick.Widgets.Center as C
+import qualified Brick.Widgets.Border as B
+import BrickUITypes
 
-data AppState = AppState
-  { asLocalHeight :: Word64
-  , asGlobalHeight :: Maybe Word64
-  , asLastMsg :: String
-  , asLocalEpochOrSlot :: Maybe EpochOrSlot
-  } deriving Show
-data CustomEvent = SlotStart
-    { ceEpoch :: Word64
-    , ceSlot :: Word16
-    }
-    | NodeInfoEvent
-    { ceLocalHeight :: Word64
-    , ceLocalEpochOrSlot :: EpochOrSlot
-    , ceGlobalHeight :: Maybe Word64
-    }
-    | QuitEvent deriving Show
-
-localHeight :: AppState -> Widget ()
+localHeight :: AppState -> Widget Name
 localHeight AppState{asLocalHeight} = str $ "Local Block Count: " <> show asLocalHeight
 
-globalHeight :: AppState -> Widget ()
+globalHeight :: AppState -> Widget Name
 globalHeight AppState{asGlobalHeight} = str $ "global: " <> maybe "unknown" show asGlobalHeight
 
-percent :: AppState -> Widget ()
+percent :: AppState -> Widget Name
 percent AppState{asLocalHeight,asGlobalHeight} = do
   let
-    computeProgress :: Word64 -> String
-    computeProgress global = (show (((fromIntegral asLocalHeight) / (fromIntegral global)) * 100)) <> "%"
-  str $ "Percent: " <> maybe "unknown" computeProgress asGlobalHeight
+    fmt :: Format Text (Double -> Text)
+    fmt = "Percent: " % float % "%"
+    go :: Maybe Word64 -> Widget Name
+    go (Just global) = txt $ sformat fmt (((fromIntegral asLocalHeight) / (fromIntegral global)) * 100)
+    go Nothing = emptyWidget
+  go asGlobalHeight
 
-lastMessage :: AppState -> Widget ()
-lastMessage AppState{asLastMsg} = str asLastMsg
+lastMessage :: AppState -> Widget Name
+lastMessage AppState{asLastMsg} = withBorderStyle BS.unicodeBold
+  $ B.borderWithLabel (str "last debug msg")
+  $ padAll 1
+  $ strWrap asLastMsg
 
-currentTip :: AppState -> Widget ()
-currentTip AppState{asLocalEpochOrSlot} = str $ "Local Slot: " <> show asLocalEpochOrSlot
+currentTip :: AppState -> Widget Name
+currentTip AppState{asLocalEpochOrSlot} = strWrap $ "Local Slot: " <> show asLocalEpochOrSlot
 
-ui :: AppState -> [ Widget () ]
-ui state = [ localHeight state <=> globalHeight state <=> percent state <=> lastMessage state <=> currentTip state ]
+ui :: AppState -> [ Widget Name ]
+ui state = [ vBox [ localHeight state, globalHeight state, percent state, lastMessage state, currentTip state ] ]
 
-handleEvent :: AppState -> BrickEvent () CustomEvent -> EventM n (Next AppState)
-handleEvent state (VtyEvent (EvKey KEnter [])) = halt state
+handleEvent :: AppState -> BrickEvent Name CustomEvent -> EventM n (Next AppState)
+handleEvent state (VtyEvent (EvKey key [])) = do
+  case key of
+    KChar 'q' -> halt state
+    _ -> continue $ state { asLastMsg = show key }
 handleEvent state (AppEvent ae) = do
   case ae of
-    NodeInfoEvent{ceLocalHeight,ceGlobalHeight,ceLocalEpochOrSlot} -> do
+    CENodeInfo (NodeInfo{niLocalHeight,niGlobalHeight,niLocalEpochOrSlot}) -> do
       continue $ state
-        { asLocalHeight = ceLocalHeight
-        , asGlobalHeight = ceGlobalHeight
-        , asLocalEpochOrSlot = Just ceLocalEpochOrSlot
+        { asLocalHeight = niLocalHeight
+        , asGlobalHeight = niGlobalHeight
+        , asLocalEpochOrSlot = Just niLocalEpochOrSlot
         }
     QuitEvent -> halt state
-    SlotStart e s -> continue $ state { asLastMsg = (show e) <> " " <> (show s) }
+    CESlotStart (SlotStart e s) -> continue $ state { asLastMsg = (show e) <> " " <> (show s) }
 handleEvent state evt = do
   continue $ state { asLastMsg = show evt }

@@ -53,5 +53,5 @@ test4 = do
 
 main :: IO ()
 main = do
-  corenodes <- forM (range (0,3)) $ \node -> startNode (Core node)
+  _corenodes <- forM (range (0,3)) $ \node -> startNode (Core node)
   runScript $ return $ getScript test4

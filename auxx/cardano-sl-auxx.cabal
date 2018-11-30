@@ -24,8 +24,6 @@ library
                        Command.Tx
                        Command.TyProjection
                        Command.Update
-                       Command.RunScript
-                       Command.LoadPlugin
                        Lang
                        Lang.Argument
                        Lang.Command
@@ -45,14 +43,8 @@ library
                      , MonadRandom
                      , ansi-wl-pprint
                      , async
-                     , cardano-sl-binary
                      , aeson
                      , base
-                     , ghc
-                     , ghc-paths
-                     , vector
-                     , cborg
-                     , reflection
                      , bytestring
                      , canonical-json
                      , cardano-sl

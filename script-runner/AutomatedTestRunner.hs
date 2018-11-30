@@ -5,7 +5,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
@@ -122,7 +121,7 @@ scriptRunnerOptionsParser :: Parser ScriptRunnerOptions
 scriptRunnerOptionsParser = do
   srCommonNodeArgs <- CLI.commonNodeArgsParser
   srPeers <- many $ CLI.nodeIdOption "peer" "Address of a peer."
-  pure ScriptRunnerOptions{..}
+  pure ScriptRunnerOptions{srCommonNodeArgs,srPeers}
 
 usageExample :: Maybe Doc
 usageExample = Just "todo"
@@ -143,10 +142,10 @@ loggerName :: LoggerName
 loggerName = "script-runner"
 
 thing :: (TestScript a, HasCompileInfo) => ScriptRunnerOptions -> InputParams a -> IO ()
-thing opts@ScriptRunnerOptions{..} inputParams = do
+thing opts@ScriptRunnerOptions{srCommonNodeArgs} inputParams = do
   let
     conf = CLI.configurationOptions (CLI.commonArgs cArgs)
-    cArgs@CLI.CommonNodeArgs{..} = srCommonNodeArgs
+    cArgs@CLI.CommonNodeArgs{CLI.cnaDumpGenesisDataPath,CLI.cnaDumpConfiguration} = srCommonNodeArgs
   withConfigurations Nothing cnaDumpGenesisDataPath cnaDumpConfiguration conf (runWithConfig opts inputParams)
 
 maybeAddPeers :: [NodeId] -> NodeParams -> NodeParams
@@ -165,16 +164,15 @@ addQueuePolicies nodeParams = do
   }
 
 runWithConfig :: (TestScript a, HasCompileInfo, HasConfigurations) => ScriptRunnerOptions -> InputParams a -> Genesis.Config -> WalletConfiguration -> TxpConfiguration -> NtpConfiguration -> IO ()
-runWithConfig ScriptRunnerOptions{..} inputParams genesisConfig _walletConfig txpConfig _ntpConfig = do
+runWithConfig ScriptRunnerOptions{srCommonNodeArgs,srPeers} inputParams genesisConfig _walletConfig txpConfig _ntpConfig = do
   let
-    cArgs@CLI.CommonNodeArgs {..} = srCommonNodeArgs
-    nArgs = CLI.NodeArgs {behaviorConfigPath = Nothing}
-  (nodeParams', _mSscParams) <- CLI.getNodeParams loggerName cArgs nArgs (configGeneratedSecrets genesisConfig)
+    nArgs = CLI.NodeArgs { CLI.behaviorConfigPath = Nothing}
+  (nodeParams', _mSscParams) <- CLI.getNodeParams loggerName srCommonNodeArgs nArgs (configGeneratedSecrets genesisConfig)
   let
     nodeParams = addQueuePolicies $ maybeAddPeers srPeers $ nodeParams'
     epochSlots = configEpochSlots genesisConfig
     vssSK = fromMaybe (error "no user secret given") (npUserSecret nodeParams ^. usVss)
-    sscParams = CLI.gtSscParams cArgs vssSK (npBehaviorConfig nodeParams)
+    sscParams = CLI.gtSscParams srCommonNodeArgs vssSK (npBehaviorConfig nodeParams)
     thing1 = txpGlobalSettings genesisConfig txpConfig
     thing2 :: ReaderT InitModeContext IO ()
     thing2 = initNodeDBs genesisConfig

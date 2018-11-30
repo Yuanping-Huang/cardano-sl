@@ -3,11 +3,11 @@
 
 module BlockParser (file1, file2, printBlock) where
 
-import           Universum hiding (when, openFile)
-import Codec.CBOR.Read (deserialiseFromBytes)
-import Pos.Binary.Class (decode)
-import Pos.Chain.Block (Block)
-import System.IO hiding (print)
+import           Codec.CBOR.Read (deserialiseFromBytes)
+import           Pos.Binary.Class (decode)
+import           Pos.Chain.Block (Block)
+import           System.IO hiding (print)
+import           Universum hiding (openFile, when)
 
 import qualified Data.ByteString.Lazy as LBS
 

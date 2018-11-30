@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Main (main) where
 
@@ -9,15 +9,19 @@ import           AutomatedTestRunner
 import           BlockParser ()
 import           Data.Constraint (Dict (Dict))
 import           Data.Default (def)
-import           Formatting (int, sformat, (%), Format)
+import           Data.Ix (range)
+import           Formatting (Format, int, sformat, (%))
 import           PocMode
-import           Pos.Chain.Update (BlockVersion(BlockVersion), SoftwareVersion(SoftwareVersion), ApplicationName(ApplicationName), BlockVersionModifier(bvmMaxTxSize), BlockVersionData(bvdMaxTxSize, bvdMaxBlockSize))
+import           Pos.Chain.Update (ApplicationName (ApplicationName),
+                     BlockVersion (BlockVersion),
+                     BlockVersionData (bvdMaxBlockSize, bvdMaxTxSize),
+                     BlockVersionModifier (bvmMaxTxSize),
+                     SoftwareVersion (SoftwareVersion))
 import           Pos.DB.Class (gsAdoptedBVData)
 import           Pos.Infra.Diffusion.Types (Diffusion)
 import           Pos.Launcher (HasConfigurations)
 import           Serokell.Data.Memory.Units (Byte)
 import           Universum hiding (on)
-import           Data.Ix (range)
 
 printbvd :: Dict HasConfigurations -> Diffusion AuxxMode -> AuxxMode ()
 printbvd Dict _diffusion = do

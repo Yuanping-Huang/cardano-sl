@@ -4,31 +4,33 @@ module BrickUITypes (AppState(..), Name, CustomEvent(..), Reply(..), SlotStart(.
 
 import           Brick.BChan
 import           Pos.Core (EpochOrSlot)
-import           Universum hiding (when, on, state)
+import           Universum hiding (on, state, when)
 
 data AppState = AppState
-  { asLocalHeight :: Word64
-  , asGlobalHeight :: Maybe Word64
-  , asLastMsg :: String
+  { asLocalHeight      :: Word64
+  , asGlobalHeight     :: Maybe Word64
+  , asLastMsg          :: String
   , asLocalEpochOrSlot :: Maybe EpochOrSlot
-  , asReplyChan :: BChan Reply
+  , asReplyChan        :: BChan Reply
   }
 
 data Reply = TriggerShutdown
 
 data SlotStart = SlotStart
   { ssEpoch :: Word64
-  , ssSlot :: Word16
+  , ssSlot  :: Word16
   } deriving Show
 
 data NodeInfo = NodeInfo
-  { niLocalHeight :: Word64
+  { niLocalHeight      :: Word64
   , niLocalEpochOrSlot :: EpochOrSlot
-  , niGlobalHeight :: Maybe Word64
+  , niGlobalHeight     :: Maybe Word64
   } deriving Show
 
-data CustomEvent = CESlotStart SlotStart
+data CustomEvent
+    = CESlotStart SlotStart
     | CENodeInfo NodeInfo
-    | QuitEvent deriving Show
+    | QuitEvent
+    deriving Show
 
 data Name = None deriving (Show, Ord, Eq)

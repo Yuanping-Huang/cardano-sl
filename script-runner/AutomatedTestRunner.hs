@@ -1,12 +1,12 @@
-{-# LANGUAGE ApplicativeDo   #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ApplicativeDo              #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module AutomatedTestRunner (Example, getGenesisConfig, loadNKeys, doUpdate, onStartup, on, getScript, runScript, NodeType(..), startNode) where
 
@@ -19,49 +19,61 @@ import           Control.Concurrent.Async.Lifted.Safe
 import           Control.Exception (throw)
 import           Control.Lens (to)
 import           Control.Monad.STM (orElse)
-import           Data.Constraint (Dict(Dict))
-import           Data.Default (Default(def))
+import           Data.Constraint (Dict (Dict))
+import           Data.Default (Default (def))
+import qualified Data.HashMap.Strict as HM
 import           Data.Ix (range)
 import           Data.List ((!!))
-import           Data.Reflection (Given, given, give)
+import qualified Data.Map as Map
+import           Data.Reflection (Given, give, given)
+import qualified Data.Text as T
 import           Data.Version (showVersion)
-import           Options.Applicative (Parser, execParser, footerDoc, fullDesc, header, help, helper, info, infoOption, long, progDesc)
-import           Paths_cardano_sl (version)
-import           Pos.Client.KeyStorage (getSecretKeysPlain, addSecretKey)
-import           Pos.Crypto (emptyPassphrase, hash, hashHexF, withSafeSigners, noPassEncrypt)
-import           Pos.DB.BlockIndex (getTipHeader)
-import           Pos.Util.CompileInfo (CompileTimeInfo (ctiGitRevision), HasCompileInfo, compileInfo, withCompileInfo)
-import           Prelude (show)
-import           Text.PrettyPrint.ANSI.Leijen (Doc)
-import           Universum hiding (when, show, on, state)
-import qualified Pos.Client.CLI as CLI
-import           Pos.Launcher (HasConfigurations, NodeParams (npBehaviorConfig, npUserSecret, npNetworkConfig),
-                     NodeResources, WalletConfiguration,
-                     bracketNodeResources, loggerBracket,
-                     runNode, runRealMode, withConfigurations, InitModeContext)
-import           Formatting (int, sformat, (%), Format)
-import           Graphics.Vty (mkVty, defaultConfig, defAttr)
+import           Formatting (Format, int, sformat, (%))
+import           Graphics.Vty (defAttr, defaultConfig, mkVty)
 import           Ntp.Client (NtpConfiguration)
-import           PocMode (AuxxContext(AuxxContext, acRealModeContext), AuxxMode, realModeToAuxx)
+import           Options.Applicative (Parser, execParser, footerDoc, fullDesc,
+                     header, help, helper, info, infoOption, long, progDesc)
+import           Paths_cardano_sl (version)
+import           PocMode (AuxxContext (AuxxContext, acRealModeContext),
+                     AuxxMode, realModeToAuxx)
 import           Pos.Chain.Block (LastKnownHeaderTag)
-import           Pos.Chain.Genesis as Genesis (Config (configGeneratedSecrets, configProtocolMagic), configEpochSlots)
+import           Pos.Chain.Genesis as Genesis
+                     (Config (configGeneratedSecrets, configProtocolMagic),
+                     configEpochSlots)
 import           Pos.Chain.Txp (TxpConfiguration)
-import           Pos.Chain.Update (UpdateData, SystemTag, mkUpdateProposalWSign, BlockVersion, SoftwareVersion, BlockVersionModifier, updateConfiguration)
+import           Pos.Chain.Update (BlockVersion, BlockVersionModifier,
+                     SoftwareVersion, SystemTag, UpdateData,
+                     mkUpdateProposalWSign, updateConfiguration)
+import qualified Pos.Client.CLI as CLI
+import           Pos.Client.KeyStorage (addSecretKey, getSecretKeysPlain)
 import           Pos.Client.Update.Network (submitUpdateProposal)
-import           Pos.Core (LocalSlotIndex, SlotId (SlotId, siEpoch, siSlot), mkLocalSlotIndex, EpochIndex(EpochIndex), SlotCount, getEpochIndex, getSlotIndex, difficultyL, getChainDifficulty, getBlockCount, getEpochOrSlot)
+import           Pos.Core (EpochIndex (EpochIndex), LocalSlotIndex, SlotCount,
+                     SlotId (SlotId, siEpoch, siSlot), difficultyL,
+                     getBlockCount, getChainDifficulty, getEpochIndex,
+                     getEpochOrSlot, getSlotIndex, mkLocalSlotIndex)
+import           Pos.Crypto (emptyPassphrase, hash, hashHexF, noPassEncrypt,
+                     withSafeSigners)
+import           Pos.DB.BlockIndex (getTipHeader)
 import           Pos.DB.DB (initNodeDBs)
 import           Pos.DB.Txp (txpGlobalSettings)
 import           Pos.Infra.Diffusion.Types (Diffusion, hoistDiffusion)
-import           Pos.Infra.Network.Types (NetworkConfig (ncTopology, ncEnqueuePolicy, ncDequeuePolicy, ncFailurePolicy), Topology (TopologyAuxx), topologyDequeuePolicy, topologyEnqueuePolicy, topologyFailurePolicy, NodeId)
+import           Pos.Infra.Network.Types (NetworkConfig (ncDequeuePolicy, ncEnqueuePolicy, ncFailurePolicy, ncTopology),
+                     NodeId, Topology (TopologyAuxx), topologyDequeuePolicy,
+                     topologyEnqueuePolicy, topologyFailurePolicy)
 import           Pos.Infra.Shutdown (triggerShutdown)
-import           Pos.Infra.Slotting.Util (onNewSlot, defaultOnNewSlotParams)
-import           Pos.Util (logException, lensOf)
-import           Pos.Util.UserSecret (usVss, readUserSecret, usPrimKey, usKeys)
+import           Pos.Infra.Slotting.Util (defaultOnNewSlotParams, onNewSlot)
+import           Pos.Launcher (HasConfigurations, InitModeContext, NodeParams (npBehaviorConfig, npNetworkConfig, npUserSecret),
+                     NodeResources, WalletConfiguration, bracketNodeResources,
+                     loggerBracket, runNode, runRealMode, withConfigurations)
+import           Pos.Util (lensOf, logException)
+import           Pos.Util.CompileInfo (CompileTimeInfo (ctiGitRevision),
+                     HasCompileInfo, compileInfo, withCompileInfo)
+import           Pos.Util.UserSecret (readUserSecret, usKeys, usPrimKey, usVss)
 import           Pos.Util.Wlog (LoggerName)
-import           Pos.WorkMode (RealMode, EmptyMempoolExt)
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Map as Map
-import qualified Data.Text as T
+import           Pos.WorkMode (EmptyMempoolExt, RealMode)
+import           Prelude (show)
+import           Text.PrettyPrint.ANSI.Leijen (Doc)
+import           Universum hiding (on, show, state, when)
 
 class TestScript a where
   getScript :: a -> Script
@@ -72,8 +84,8 @@ data ScriptRunnerOptions = ScriptRunnerOptions
   } deriving Show
 
 data ScriptBuilder = ScriptBuilder
-  { sbScript :: Script
-  , sbEpochSlots :: SlotCount
+  { sbScript        :: Script
+  , sbEpochSlots    :: SlotCount
   , sbGenesisConfig :: Config
   }
 data NodeType = Core { ntIdex :: Integer }
@@ -81,7 +93,7 @@ data NodeType = Core { ntIdex :: Integer }
 instance Default Script where def = Script def def
 
 data Script = Script
-  { slotTriggers :: Map.Map SlotId SlotTrigger
+  { slotTriggers   :: Map.Map SlotId SlotTrigger
   , startupActions :: [ SlotTrigger ]
   } deriving (Show, Generic)
 
@@ -220,7 +232,7 @@ worker2 eventChan diffusion = do
     globalHeight = view (difficultyL . to getChainDifficulty) <$> mbHeader
     localHeight = view (difficultyL . to getChainDifficulty) localTip
     f (Just v) = Just $ getBlockCount v
-    f Nothing = Nothing
+    f Nothing  = Nothing
   liftIO $ do
     writeBChan eventChan $ CENodeInfo $ NodeInfo (getBlockCount localHeight) (getEpochOrSlot localTip) (f globalHeight)
     threadDelay 100000
@@ -234,7 +246,7 @@ worker1 genesisConfig script eventChan diffusion = do
       liftIO $ writeBChan eventChan $ CESlotStart $ SlotStart (getEpochIndex $ siEpoch slotid) (getSlotIndex $ siSlot slotid)
       case Map.lookup slotid (slotTriggers realScript) of
         Just (SlotTrigger act) -> runAction act
-        Nothing -> pure ()
+        Nothing                -> pure ()
       pure ()
     realScript = getScript script
     errhandler :: Show e => e -> AuxxMode ()
@@ -249,14 +261,14 @@ worker1 genesisConfig script eventChan diffusion = do
   realWorker `catch` errhandler @SomeException
 
 data TestScript a => InputParams a = InputParams
-  { ipEventChan :: BChan CustomEvent
-  , ipReplyChan :: BChan Reply
+  { ipEventChan    :: BChan CustomEvent
+  , ipReplyChan    :: BChan Reply
   , ipScriptGetter :: HasEpochSlots => IO a
   }
 data TestScript a => InputParams2 a = InputParams2
   { ip2EventChan :: BChan CustomEvent
   , ip2ReplyChan :: BChan Reply
-  , ip2Script :: a
+  , ip2Script    :: a
   }
 
 runScript :: TestScript a => (HasEpochSlots => IO a) -> IO ()
@@ -297,9 +309,7 @@ runUI = do
   pure (eventChan, replyChan, brick)
 
 getGenesisConfig :: Example Config
-getGenesisConfig = do
-  oldsb <- get
-  pure $ sbGenesisConfig oldsb
+getGenesisConfig = sbGenesisConfig <$> get
 
 data SlotCreationFailure = SlotCreationFailure { msg :: Text, slotsInEpoch :: SlotCount } deriving Show
 instance Exception SlotCreationFailure where
@@ -338,7 +348,6 @@ on (epoch, slot) action = do
       sbScript = script
     }
   put newsb
-  pure ()
 
 doUpdate :: HasConfigurations => Diffusion AuxxMode -> Config -> Int -> BlockVersion -> SoftwareVersion -> BlockVersionModifier -> AuxxMode ()
 doUpdate diffusion genesisConfig keyIndex blockVersion softwareVersion blockVersionModifier = do

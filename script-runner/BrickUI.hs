@@ -1,17 +1,17 @@
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module BrickUI (ui, handleEvent) where
 
 import           Brick hiding (on)
-import           Formatting
-import           Graphics.Vty (Event(EvKey), Key(KChar))
-import           Universum hiding (when, on, state)
+import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Border.Style as BS
 import qualified Brick.Widgets.Center as C
-import qualified Brick.Widgets.Border as B
-import BrickUITypes
+import           BrickUITypes
+import           Formatting
+import           Graphics.Vty (Event (EvKey), Key (KChar))
+import           Universum hiding (on, state, when)
 
 localHeight :: AppState -> Widget Name
 localHeight AppState{asLocalHeight} = str $ "Local Block Count: " <> show asLocalHeight
@@ -45,7 +45,7 @@ handleEvent :: AppState -> BrickEvent Name CustomEvent -> EventM n (Next AppStat
 handleEvent state (VtyEvent (EvKey key [])) = do
   case key of
     KChar 'q' -> halt state
-    _ -> continue $ state { asLastMsg = show key }
+    _         -> continue $ state { asLastMsg = show key }
 handleEvent state (AppEvent ae) = do
   case ae of
     CENodeInfo (NodeInfo{niLocalHeight,niGlobalHeight,niLocalEpochOrSlot}) -> do

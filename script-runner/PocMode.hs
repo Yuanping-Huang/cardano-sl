@@ -1,13 +1,13 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses   #-}
-{-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoImplicitPrelude     #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 -- | Execution mode used in Auxx.
 
@@ -29,24 +29,39 @@ import           Control.Monad.Reader (withReaderT)
 import           Control.Monad.Trans.Resource (transResourceT)
 import           Data.Conduit (transPipe)
 
-import           Pos.Chain.Block (HasSlogGState (slogGState), HasSlogContext(slogContext))
+import           Pos.Chain.Block (HasSlogContext (slogContext),
+                     HasSlogGState (slogGState))
 import           Pos.Chain.Ssc (HasSscContext (sscContext))
-import           Pos.Client.KeyStorage (MonadKeys (modifySecret), MonadKeysRead (getSecret), getSecretDefault, modifySecretDefault)
-import           Pos.Client.Txp.Balances (MonadBalances (getOwnUtxos, getBalance), getBalanceFromUtxo, getOwnUtxosGenesis)
-import           Pos.Client.Txp.History (MonadTxHistory (getBlockHistory, getLocalHistory, saveTx), getBlockHistoryDefault, getLocalHistoryDefault, saveTxDefault)
+import           Pos.Client.KeyStorage (MonadKeys (modifySecret),
+                     MonadKeysRead (getSecret), getSecretDefault,
+                     modifySecretDefault)
+import           Pos.Client.Txp.Balances
+                     (MonadBalances (getBalance, getOwnUtxos),
+                     getBalanceFromUtxo, getOwnUtxosGenesis)
+import           Pos.Client.Txp.History
+                     (MonadTxHistory (getBlockHistory, getLocalHistory, saveTx),
+                     getBlockHistoryDefault, getLocalHistoryDefault,
+                     saveTxDefault)
 import           Pos.Context (HasNodeContext (nodeContext))
 import           Pos.Core (HasPrimaryKey (primaryKey))
 import           Pos.Core.JsonLog (CanJsonLog (jsonLog))
-import           Pos.Core.Reporting (HasMisbehaviorMetrics (misbehaviorMetrics), MonadReporting (report))
-import           Pos.Core.Slotting (HasSlottingVar (slottingVar, slottingTimestamp), MonadSlotsData)
+import           Pos.Core.Reporting (HasMisbehaviorMetrics (misbehaviorMetrics),
+                     MonadReporting (report))
+import           Pos.Core.Slotting
+                     (HasSlottingVar (slottingTimestamp, slottingVar),
+                     MonadSlotsData)
 import           Pos.DB (MonadGState (gsAdoptedBVData))
 import           Pos.DB.Block (MonadBListener (onApplyBlocks, onRollbackBlocks))
-import           Pos.DB.Class (MonadDB (dbPut, dbWriteBatch, dbDelete, dbPutSerBlunds), MonadDBRead (dbGet, dbIterSource, dbGetSerBlock, dbGetSerUndo, dbGetSerBlund))
-import           Pos.DB.Txp (MempoolExt, MonadTxpLocal (txpNormalize, txpProcessTx), txNormalize,
+import           Pos.DB.Class
+                     (MonadDB (dbDelete, dbPut, dbPutSerBlunds, dbWriteBatch),
+                     MonadDBRead (dbGet, dbGetSerBlock, dbGetSerBlund, dbGetSerUndo, dbIterSource))
+import           Pos.DB.Txp (MempoolExt,
+                     MonadTxpLocal (txpNormalize, txpProcessTx), txNormalize,
                      txProcessTransaction)
-import           Pos.Infra.Network.Types (HasNodeType (getNodeType), NodeType (NodeEdge))
+import           Pos.Infra.Network.Types (HasNodeType (getNodeType),
+                     NodeType (NodeEdge))
 import           Pos.Infra.Shutdown (HasShutdownContext (shutdownContext))
-import           Pos.Infra.Slotting.Class (MonadSlots (getCurrentSlot, getCurrentSlotBlocking, getCurrentSlotInaccurate, currentTimeSlotting))
+import           Pos.Infra.Slotting.Class (MonadSlots (currentTimeSlotting, getCurrentSlot, getCurrentSlotBlocking, getCurrentSlotInaccurate))
 import           Pos.Launcher (HasConfigurations)
 import           Pos.Util (HasLens (lensOf), postfixLFields)
 import           Pos.Util.CompileInfo (HasCompileInfo)

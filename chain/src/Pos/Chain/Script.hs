@@ -156,7 +156,7 @@ stdlib = case PL.loadLibrary PL.emptyDeclContext prelude of
 -- Error catching
 ----------------------------------------------------------------------------
 
-{-# INLINEABLE defaultHandles #-}
+{-# INLINE defaultHandles #-}
 defaultHandles :: [Handler IO (Either String a)]
 defaultHandles =
     [ Handler $ \(x :: ArithException)   -> return (Left (displayException x))

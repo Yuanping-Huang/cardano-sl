@@ -13,6 +13,7 @@ import           Pos.Infra.Shutdown.Types (ShutdownContext (..), shdnFInjects,
                      shdnIsTriggered)
 import           Pos.Util.Wlog (WithLogger, logInfo)
 
+{-# INLINE triggerShutdown #-}
 triggerShutdown
     :: (MonadIO m, MonadReader ctx m, WithLogger m, HasShutdownContext ctx)
     => m ()

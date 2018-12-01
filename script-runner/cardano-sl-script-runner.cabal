@@ -9,15 +9,15 @@ maintainer:          operations@iohk.io
 copyright:           2018 IOHK
 category:            Currency
 build-type:          Simple
-extra-source-files:  README.md
 cabal-version:       >=1.10
 
 executable poc
   main-is:              Poc.hs
   other-modules:        AutomatedTestRunner
                         BlockParser
-                        PocMode
                         BrickUI
+                        BrickUITypes
+                        PocMode
   default-language:    Haskell2010
   build-depends:        base
                       , ansi-wl-pprint
@@ -44,6 +44,7 @@ executable poc
                       , lifted-async
                       , mtl
                       , optparse-applicative
+                      , process
                       , reflection
                       , resourcet
                       , serokell-util
@@ -51,9 +52,10 @@ executable poc
                       , text
                       , transformers
                       , universum
+                      , unix
                       , unordered-containers
                       , vty
   ghc-options:         -threaded -rtsopts
                        -Wall -Weverything
                        -Wno-unsafe -Wno-missing-import-lists
-                       -O2 -optl-fuse-ld=gold
+                       -O2

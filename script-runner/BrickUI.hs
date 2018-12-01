@@ -46,6 +46,7 @@ handleEvent state (VtyEvent (EvKey key [])) = do
   case key of
     KChar 'q' -> halt state
     _         -> continue $ state { asLastMsg = show key }
+
 handleEvent state (AppEvent ae) = do
   case ae of
     CENodeInfo (NodeInfo{niLocalHeight,niGlobalHeight,niLocalEpochOrSlot}) -> do
@@ -56,5 +57,6 @@ handleEvent state (AppEvent ae) = do
         }
     QuitEvent -> halt state
     CESlotStart (SlotStart e s) -> continue $ state { asLastMsg = (show e) <> " " <> (show s) }
+
 handleEvent state evt = do
   continue $ state { asLastMsg = show evt }

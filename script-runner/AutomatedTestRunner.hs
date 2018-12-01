@@ -8,7 +8,7 @@
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TypeApplications           #-}
 
-module AutomatedTestRunner (Example, getGenesisConfig, loadNKeys, doUpdate, onStartup, on, getScript, runScript, NodeType(..), startNode) where
+module AutomatedTestRunner (Example, getGenesisConfig, loadNKeys, doUpdate, onStartup, on, getScript, runScript, NodeType(..), startNode, stopNode, NodeHandle) where
 
 import           Brick hiding (on)
 import           Brick.BChan
@@ -35,7 +35,7 @@ import           Options.Applicative (Parser, execParser, footerDoc, fullDesc,
                      header, help, helper, info, infoOption, long, progDesc)
 import           Paths_cardano_sl (version)
 import           PocMode (AuxxContext (AuxxContext, acRealModeContext),
-                     AuxxMode, realModeToAuxx)
+                     PocMode, realModeToAuxx)
 import           Pos.Chain.Block (LastKnownHeaderTag)
 import           Pos.Chain.Genesis as Genesis
                      (Config (configGeneratedSecrets, configProtocolMagic),
@@ -69,11 +69,13 @@ import           Pos.Util (lensOf, logException)
 import           Pos.Util.CompileInfo (CompileTimeInfo (ctiGitRevision),
                      HasCompileInfo, compileInfo, withCompileInfo)
 import           Pos.Util.UserSecret (readUserSecret, usKeys, usPrimKey, usVss)
-import           Pos.Util.Wlog (LoggerName)
+import           Pos.Util.Wlog (LoggerName, logWarning)
 import           Pos.WorkMode (EmptyMempoolExt, RealMode)
 import           Prelude (show)
 import           Text.PrettyPrint.ANSI.Leijen (Doc)
 import           Universum hiding (on, show, state, when)
+import System.Process
+import System.Posix.Signals
 
 class TestScript a where
   getScript :: a -> Script
@@ -97,7 +99,7 @@ data Script = Script
   , startupActions :: [ SlotTrigger ]
   } deriving (Show, Generic)
 
-data SlotTrigger = SlotTrigger (Dict HasConfigurations -> Diffusion AuxxMode -> AuxxMode ())
+data SlotTrigger = SlotTrigger (Dict HasConfigurations -> Diffusion PocMode -> PocMode ())
 
 instance Show SlotTrigger where
   show _ = "IO ()"
@@ -114,8 +116,6 @@ instance HasEpochSlots => TestScript (Example a) where
 
 instance TestScript Script where
   getScript = identity
-
-data NodeHandle = NodeHandle (Async ())
 
 data EpochSlots = EpochSlots { epochSlots :: SlotCount, config :: Config }
 type HasEpochSlots = Given EpochSlots
@@ -196,26 +196,26 @@ runWithConfig ScriptRunnerOptions{srCommonNodeArgs,srPeers} inputParams genesisC
 thing3 :: (TestScript a, HasCompileInfo, HasConfigurations) => Config -> TxpConfiguration -> InputParams2 a -> NodeResources () -> IO ()
 thing3 genesisConfig txpConfig inputParams nr = do
   let
-    toRealMode :: AuxxMode a -> RealMode EmptyMempoolExt a
+    toRealMode :: PocMode a -> RealMode EmptyMempoolExt a
     toRealMode auxxAction = do
       realModeContext <- ask
       lift $ runReaderT auxxAction $ AuxxContext { acRealModeContext = realModeContext }
     thing2 :: Diffusion (RealMode ()) -> RealMode EmptyMempoolExt ()
     thing2 diffusion = toRealMode (thing5 (hoistDiffusion realModeToAuxx toRealMode diffusion))
-    thing5 :: Diffusion AuxxMode -> AuxxMode ()
+    thing5 :: Diffusion PocMode -> PocMode ()
     thing5 = runNode genesisConfig txpConfig nr thing4
-    thing4 :: [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
+    thing4 :: [ (Text, Diffusion PocMode -> PocMode ()) ]
     thing4 = workers genesisConfig inputParams
   runRealMode updateConfiguration genesisConfig txpConfig nr thing2
 
-workers :: (HasConfigurations, TestScript a) => Genesis.Config -> InputParams2 a -> [ (Text, Diffusion AuxxMode -> AuxxMode ()) ]
+workers :: (HasConfigurations, TestScript a) => Genesis.Config -> InputParams2 a -> [ (Text, Diffusion PocMode -> PocMode ()) ]
 workers genesisConfig InputParams2{ip2EventChan,ip2Script,ip2ReplyChan} =
   [ ( T.pack "worker1", worker1 genesisConfig ip2Script ip2EventChan)
   , ( "worker2", worker2 ip2EventChan)
   , ( "brick reply worker", brickReplyWorker ip2ReplyChan)
   ]
 
-brickReplyWorker :: HasConfigurations => BChan Reply -> Diffusion AuxxMode -> AuxxMode ()
+brickReplyWorker :: HasConfigurations => BChan Reply -> Diffusion PocMode -> PocMode ()
 brickReplyWorker replyChan diffusion = do
   reply <- liftIO $ readBChan replyChan
   case reply of
@@ -223,7 +223,7 @@ brickReplyWorker replyChan diffusion = do
       triggerShutdown
   brickReplyWorker replyChan diffusion
 
-worker2 :: HasConfigurations => BChan CustomEvent -> Diffusion AuxxMode -> AuxxMode ()
+worker2 :: HasConfigurations => BChan CustomEvent -> Diffusion PocMode -> PocMode ()
 worker2 eventChan diffusion = do
   localTip  <- getTipHeader
   headerRef <- view (lensOf @LastKnownHeaderTag)
@@ -238,10 +238,10 @@ worker2 eventChan diffusion = do
     threadDelay 100000
   worker2 eventChan diffusion
 
-worker1 :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> BChan CustomEvent -> Diffusion (AuxxMode) -> AuxxMode ()
+worker1 :: (HasConfigurations, TestScript a) => Genesis.Config -> a -> BChan CustomEvent -> Diffusion (PocMode) -> PocMode ()
 worker1 genesisConfig script eventChan diffusion = do
   let
-    handler :: SlotId -> AuxxMode ()
+    handler :: SlotId -> PocMode ()
     handler slotid = do
       liftIO $ writeBChan eventChan $ CESlotStart $ SlotStart (getEpochIndex $ siEpoch slotid) (getSlotIndex $ siSlot slotid)
       case Map.lookup slotid (slotTriggers realScript) of
@@ -249,9 +249,9 @@ worker1 genesisConfig script eventChan diffusion = do
         Nothing                -> pure ()
       pure ()
     realScript = getScript script
-    errhandler :: Show e => e -> AuxxMode ()
+    errhandler :: Show e => e -> PocMode ()
     errhandler e = print e
-    runAction :: (Dict HasConfigurations -> Diffusion AuxxMode -> AuxxMode ()) -> AuxxMode ()
+    runAction :: (Dict HasConfigurations -> Diffusion PocMode -> PocMode ()) -> PocMode ()
     runAction act = do
       act Dict diffusion `catch` errhandler @SomeException
     realWorker = do
@@ -314,7 +314,7 @@ getGenesisConfig = sbGenesisConfig <$> get
 data SlotCreationFailure = SlotCreationFailure { msg :: Text, slotsInEpoch :: SlotCount } deriving Show
 instance Exception SlotCreationFailure where
 
-onStartup :: (Dict HasConfigurations -> Diffusion AuxxMode -> AuxxMode ()) -> Example ()
+onStartup :: (Dict HasConfigurations -> Diffusion PocMode -> PocMode ()) -> Example ()
 onStartup action = do
   oldsb <- get
   let
@@ -328,7 +328,7 @@ onStartup action = do
   put newsb
   pure ()
 
-on :: (Word64, Word16) -> (Dict HasConfigurations -> Diffusion AuxxMode -> AuxxMode ()) -> Example ()
+on :: (Word64, Word16) -> (Dict HasConfigurations -> Diffusion PocMode -> PocMode ()) -> Example ()
 on (epoch, slot) action = do
   oldsb <- get
   let
@@ -349,7 +349,7 @@ on (epoch, slot) action = do
     }
   put newsb
 
-doUpdate :: HasConfigurations => Diffusion AuxxMode -> Config -> Int -> BlockVersion -> SoftwareVersion -> BlockVersionModifier -> AuxxMode ()
+doUpdate :: HasConfigurations => Diffusion PocMode -> Config -> Int -> BlockVersion -> SoftwareVersion -> BlockVersionModifier -> PocMode ()
 doUpdate diffusion genesisConfig keyIndex blockVersion softwareVersion blockVersionModifier = do
   let
     --tag = SystemTag "win64"
@@ -379,12 +379,12 @@ doUpdate diffusion genesisConfig keyIndex blockVersion softwareVersion blockVers
       putText (sformat ("Update proposal submitted along with votes, upId: "%hashHexF%"\n") upid)
     print updateProposal
 
-loadNKeys :: Integer -> AuxxMode ()
+loadNKeys :: Integer -> PocMode ()
 loadNKeys n = do
   let
     fmt :: Format r (Integer -> r)
     fmt = "../state-demo/generated-keys/rich/" % int % ".key"
-    loadKey :: Integer -> AuxxMode ()
+    loadKey :: Integer -> PocMode ()
     loadKey x = do
       secret <- readUserSecret (T.unpack $ sformat fmt x)
       let
@@ -394,14 +394,30 @@ loadNKeys n = do
       addSecretKey $ noPassEncrypt primSk
   mapM_ loadKey (range (0,n - 1))
 
+data NodeHandle = NodeHandle (Async ()) ProcessHandle
+
 startNode :: NodeType -> IO NodeHandle
 startNode (Core idx) = do
+  stdout <- openFile ("poc-state/core-stdout-" <> show idx) WriteMode
   let
-    _params = [ "--configuration-file", "../lib/configuration.yaml"
+    params = [ "--configuration-file", "../lib/configuration.yaml"
              , "--system-start", "1543100429"
              , "--db-path", "poc-state/core" <> (show idx) <> "-db"
              , "--keyfile", "poc-state/secret" <> (show idx) <> ".key"
              ]
+    pc :: CreateProcess
+    pc = (proc "cardano-node-simple" params) { std_out = UseHandle stdout }
+  (stdin, stdout, stderr, ph) <- createProcess pc
   later <- async $ do
+    waitForProcess ph
     pure ()
-  pure $ NodeHandle later
+  pure $ NodeHandle later ph
+
+stopNode :: NodeHandle -> IO ()
+stopNode (NodeHandle async ph) = do
+  maybePid <- getPid ph
+  case maybePid of
+    Just pid -> do
+      signalProcess sigINT pid
+    Nothing -> do
+      logWarning "node already stopped when trying to stop it"

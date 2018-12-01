@@ -15,8 +15,8 @@ module PocMode
        (
        -- * Mode, context, etc.
          AuxxContext (..)
-       , AuxxMode
-       , MonadAuxxMode
+       , PocMode
+       , MonadPocMode
 
        -- * Helpers
        , realModeToAuxx
@@ -70,10 +70,10 @@ import           Pos.Util.UserSecret (HasUserSecret (userSecret))
 import           Pos.Util.Wlog (HasLoggerName (askLoggerName, modifyLoggerName))
 import           Pos.WorkMode (EmptyMempoolExt, RealMode, RealModeContext)
 
-type AuxxMode = ReaderT AuxxContext IO
+type PocMode = ReaderT AuxxContext IO
 
-class (m ~ AuxxMode, HasConfigurations, HasCompileInfo) => MonadAuxxMode m
-instance (HasConfigurations, HasCompileInfo) => MonadAuxxMode AuxxMode
+class (m ~ PocMode, HasConfigurations, HasCompileInfo) => MonadPocMode m
+instance (HasConfigurations, HasCompileInfo) => MonadPocMode PocMode
 
 data AuxxContext = AuxxContext
     { acRealModeContext :: !(RealModeContext EmptyMempoolExt)
@@ -85,8 +85,8 @@ makeLensesWith postfixLFields ''AuxxContext
 -- Helpers
 ----------------------------------------------------------------------------
 
--- | Turn 'RealMode' action into 'AuxxMode' action.
-realModeToAuxx :: RealMode EmptyMempoolExt a -> AuxxMode a
+-- | Turn 'RealMode' action into 'PocMode' action.
+realModeToAuxx :: RealMode EmptyMempoolExt a -> PocMode a
 realModeToAuxx = withReaderT acRealModeContext
 
 ----------------------------------------------------------------------------
@@ -103,7 +103,7 @@ instance HasPrimaryKey AuxxContext where
 -- FIXME it's a bad sign that we even need this instance.
 -- The pieces of the software which the block generator uses should never
 -- even try to report.
-instance MonadReporting AuxxMode where
+instance MonadReporting PocMode where
     report _ = pure ()
 
 -- | Ignore reports.
@@ -142,24 +142,24 @@ instance HasSlogContext AuxxContext where
 instance HasSlogGState AuxxContext where
     slogGState = acRealModeContext_L . slogGState
 
-instance MonadSlotsData ctx AuxxMode => MonadSlots ctx AuxxMode where
+instance MonadSlotsData ctx PocMode => MonadSlots ctx PocMode where
     getCurrentSlot = realModeToAuxx . getCurrentSlot
     getCurrentSlotBlocking = realModeToAuxx . getCurrentSlotBlocking
     getCurrentSlotInaccurate = realModeToAuxx . getCurrentSlotInaccurate
     currentTimeSlotting = realModeToAuxx currentTimeSlotting
 
-instance {-# OVERLAPPING #-} HasLoggerName AuxxMode where
+instance {-# OVERLAPPING #-} HasLoggerName PocMode where
     askLoggerName = realModeToAuxx askLoggerName
     modifyLoggerName f action = do
         auxxCtx <- ask
-        let auxxToRealMode :: AuxxMode a -> RealMode EmptyMempoolExt a
+        let auxxToRealMode :: PocMode a -> RealMode EmptyMempoolExt a
             auxxToRealMode = withReaderT (\realCtx -> set acRealModeContext_L realCtx auxxCtx)
         realModeToAuxx $ modifyLoggerName f $ auxxToRealMode action
 
-instance {-# OVERLAPPING #-} CanJsonLog AuxxMode where
+instance {-# OVERLAPPING #-} CanJsonLog PocMode where
     jsonLog = realModeToAuxx ... jsonLog
 
-instance MonadDBRead AuxxMode where
+instance MonadDBRead PocMode where
     dbGet = realModeToAuxx ... dbGet
     dbIterSource tag p =
         transPipe (transResourceT realModeToAuxx) (dbIterSource tag p)
@@ -167,37 +167,37 @@ instance MonadDBRead AuxxMode where
     dbGetSerUndo = realModeToAuxx ... dbGetSerUndo
     dbGetSerBlund = realModeToAuxx ... dbGetSerBlund
 
-instance MonadDB AuxxMode where
+instance MonadDB PocMode where
     dbPut = realModeToAuxx ... dbPut
     dbWriteBatch = realModeToAuxx ... dbWriteBatch
     dbDelete = realModeToAuxx ... dbDelete
     dbPutSerBlunds = realModeToAuxx ... dbPutSerBlunds
 
-instance MonadGState AuxxMode where
+instance MonadGState PocMode where
     gsAdoptedBVData = realModeToAuxx ... gsAdoptedBVData
 
-instance MonadBListener AuxxMode where
+instance MonadBListener PocMode where
     onApplyBlocks = realModeToAuxx ... onApplyBlocks
     onRollbackBlocks = realModeToAuxx ... onRollbackBlocks
 
-instance MonadBalances AuxxMode where
+instance MonadBalances PocMode where
     getOwnUtxos genesisData addrs = getOwnUtxosGenesis genesisData addrs
     getBalance = getBalanceFromUtxo
 
-instance MonadTxHistory AuxxMode where
+instance MonadTxHistory PocMode where
     getBlockHistory = getBlockHistoryDefault
     getLocalHistory = getLocalHistoryDefault
     saveTx = saveTxDefault
 
-instance MonadKeysRead AuxxMode where
+instance MonadKeysRead PocMode where
     getSecret = getSecretDefault
 
-instance MonadKeys AuxxMode where
+instance MonadKeys PocMode where
     modifySecret = modifySecretDefault
 
-type instance MempoolExt AuxxMode = EmptyMempoolExt
+type instance MempoolExt PocMode = EmptyMempoolExt
 
-instance MonadTxpLocal AuxxMode where
+instance MonadTxpLocal PocMode where
     txpNormalize pm = withReaderT acRealModeContext . txNormalize pm
     txpProcessTx genesisConfig txpConfig = withReaderT acRealModeContext . txProcessTransaction genesisConfig txpConfig
 

@@ -4,11 +4,12 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TypeApplications           #-}
 
-module AutomatedTestRunner (Example, getGenesisConfig, loadNKeys, doUpdate, onStartup, on, getScript, runScript, NodeType(..), startNode, stopNode, NodeHandle) where
+module AutomatedTestRunner (Example, getGenesisConfig, loadNKeys, doUpdate, onStartup, on, getScript, runScript) where
 
 import           Brick hiding (on)
 import           Brick.BChan
@@ -34,8 +35,8 @@ import           Ntp.Client (NtpConfiguration)
 import           Options.Applicative (Parser, execParser, footerDoc, fullDesc,
                      header, help, helper, info, infoOption, long, progDesc)
 import           Paths_cardano_sl (version)
-import           PocMode (AuxxContext (AuxxContext, acRealModeContext),
-                     PocMode, realModeToAuxx)
+import           PocMode (AuxxContext (AuxxContext, acRealModeContext), PocMode,
+                     realModeToAuxx)
 import           Pos.Chain.Block (LastKnownHeaderTag)
 import           Pos.Chain.Genesis as Genesis
                      (Config (configGeneratedSecrets, configProtocolMagic),
@@ -69,13 +70,10 @@ import           Pos.Util (lensOf, logException)
 import           Pos.Util.CompileInfo (CompileTimeInfo (ctiGitRevision),
                      HasCompileInfo, compileInfo, withCompileInfo)
 import           Pos.Util.UserSecret (readUserSecret, usKeys, usPrimKey, usVss)
-import           Pos.Util.Wlog (LoggerName, logWarning)
+import           Pos.Util.Wlog (LoggerName)
 import           Pos.WorkMode (EmptyMempoolExt, RealMode)
 import           Prelude (show)
-import           Text.PrettyPrint.ANSI.Leijen (Doc)
-import           Universum hiding (on, show, state, when)
-import System.Process
-import System.Posix.Signals
+import           Universum hiding (on, state, when)
 
 class TestScript a where
   getScript :: a -> Script
@@ -90,7 +88,6 @@ data ScriptBuilder = ScriptBuilder
   , sbEpochSlots    :: SlotCount
   , sbGenesisConfig :: Config
   }
-data NodeType = Core { ntIdex :: Integer }
 
 instance Default Script where def = Script def def
 
@@ -135,16 +132,13 @@ scriptRunnerOptionsParser = do
   srPeers <- many $ CLI.nodeIdOption "peer" "Address of a peer."
   pure ScriptRunnerOptions{srCommonNodeArgs,srPeers}
 
-usageExample :: Maybe Doc
-usageExample = Just "todo"
-
 getScriptRunnerOptions :: HasCompileInfo => IO ScriptRunnerOptions
 getScriptRunnerOptions = execParser programInfo
   where
     programInfo = info (helper <*> versionOption <*> scriptRunnerOptionsParser) $
         fullDesc <> progDesc "Cardano SL CLI utilities."
                  <> header "CLI-based utilities (auxx)."
-                 <> footerDoc usageExample
+                 <> footerDoc (Just "todo")
     versionOption :: Parser (a -> a)
     versionOption = infoOption
       ("cardano-script-runner" <> showVersion version <> ", git revision " <> toString (ctiGitRevision compileInfo))
@@ -393,31 +387,3 @@ loadNKeys n = do
       let primSk = fromMaybe (error "Primary key not found") (secret' ^. usPrimKey)
       addSecretKey $ noPassEncrypt primSk
   mapM_ loadKey (range (0,n - 1))
-
-data NodeHandle = NodeHandle (Async ()) ProcessHandle
-
-startNode :: NodeType -> IO NodeHandle
-startNode (Core idx) = do
-  stdout <- openFile ("poc-state/core-stdout-" <> show idx) WriteMode
-  let
-    params = [ "--configuration-file", "../lib/configuration.yaml"
-             , "--system-start", "1543100429"
-             , "--db-path", "poc-state/core" <> (show idx) <> "-db"
-             , "--keyfile", "poc-state/secret" <> (show idx) <> ".key"
-             ]
-    pc :: CreateProcess
-    pc = (proc "cardano-node-simple" params) { std_out = UseHandle stdout }
-  (stdin, stdout, stderr, ph) <- createProcess pc
-  later <- async $ do
-    waitForProcess ph
-    pure ()
-  pure $ NodeHandle later ph
-
-stopNode :: NodeHandle -> IO ()
-stopNode (NodeHandle async ph) = do
-  maybePid <- getPid ph
-  case maybePid of
-    Just pid -> do
-      signalProcess sigINT pid
-    Nothing -> do
-      logWarning "node already stopped when trying to stop it"

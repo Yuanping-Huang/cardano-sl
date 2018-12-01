@@ -16249,6 +16249,7 @@ license = stdenv.lib.licenses.mit;
 , stdenv
 , stm
 , text
+, time
 , transformers
 , universum
 , unix
@@ -16294,6 +16295,7 @@ resourcet
 serokell-util
 stm
 text
+time
 transformers
 universum
 unix

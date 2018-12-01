@@ -50,6 +50,7 @@ executable poc
                       , serokell-util
                       , stm
                       , text
+                      , time
                       , transformers
                       , universum
                       , unix

@@ -11,18 +11,19 @@ import           Data.Constraint (Dict (Dict))
 import           Data.Default (def)
 import           Data.Ix (range)
 import           Formatting (Format, int, sformat, (%))
+import           NodeControl (NodeHandle, NodeType (..), genSystemStart,
+                     startNode, stopNode)
 import           PocMode
 import           Pos.Chain.Update (ApplicationName (ApplicationName),
                      BlockVersion (BlockVersion),
                      BlockVersionData (bvdMaxBlockSize, bvdMaxTxSize),
-                     BlockVersionModifier,
-                     SoftwareVersion (SoftwareVersion))
+                     BlockVersionModifier, SoftwareVersion (SoftwareVersion))
 import           Pos.DB.Class (gsAdoptedBVData)
 import           Pos.Infra.Diffusion.Types (Diffusion)
 import           Pos.Launcher (HasConfigurations)
+import           Pos.Util.Wlog (logInfo)
 import           Serokell.Data.Memory.Units (Byte)
 import           Universum hiding (on)
-import           Pos.Util.Wlog (logInfo)
 
 printbvd :: Dict HasConfigurations -> Diffusion PocMode -> PocMode ()
 printbvd Dict _diffusion = do
@@ -57,16 +58,17 @@ test4 = do
 
 main :: IO ()
 main = do
+  systemStart <- genSystemStart 60
   let
     createNodes :: IO [NodeHandle]
     createNodes = do
-      corenodes <- forM (range (0,3)) $ \node -> startNode (Core node)
+      corenodes <- forM (range (0,3)) $ \node -> startNode (Core node systemStart)
       pure corenodes
     cleanupNodes :: [NodeHandle] -> IO ()
     cleanupNodes corenodes = do
       logInfo "stopping all nodes"
       mapM_ stopNode corenodes
     runScript' :: [NodeHandle] -> IO ()
-    runScript' corenodes = do
+    runScript' _corenodes = do
       runScript $ return $ getScript test4
   bracket createNodes cleanupNodes runScript'
